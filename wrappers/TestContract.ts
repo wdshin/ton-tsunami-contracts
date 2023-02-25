@@ -67,7 +67,7 @@ export function packAmmState(state: AmmState) {
 
 export type TestContractConfig = {
   balance: number;
-  oraclePrice: number;
+  oraclePrice: bigint;
   exchangeSettings: ExchangeSettings;
   ammState: AmmState;
 };
