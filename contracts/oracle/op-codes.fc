@@ -1,0 +1,3 @@
+const op::set_price = "op::set_price"c;
+const op::price_request = "op::price_request"c;
+const op::price_response = "op::price_response"c;

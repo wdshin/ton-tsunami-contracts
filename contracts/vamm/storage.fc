@@ -1,0 +1,99 @@
+#include "./packers.fc";
+
+global int db::balance;
+global int db::fee;                                       ;; Exchange fee. Default is 1%. 1/2 goes to stakers, 1/2 goes to insurance fund
+global int db::rolloverFee;                               ;; Rollover fee per minute. Default 35% per year.
+global int db::fundingPeriod;                             ;; Funding period. By default funding is paid once per hour
+global int db::initMarginRatio;                           ;; Initial margin ratio. Controls how much leverage can be applied when position is created
+global int db::maintenanceMarginRatio;                    ;; Maintenance margin ratio (MMR). When MR < MMR position can be liquidated
+global int db::liquidationFeeRatio;                       ;; % of position size liquidator will get for himself. 1/2 of this goes to liquidator, 1/2 - to insurance fund
+global int db::partialLiquidationRatio;                   ;; % of position notional that will be liquidated in case 0 < MR < MMR
+global int db::spreadLimit;                               ;; abs((marketPrice - oraclePrice) / oraclePrice). If over spread limit, liquidations consult oracle price
+global int db::maxPriceImpact;                            ;; maximum price impact per order
+global int db::maxPriceSpread;                            ;; max spread between Index and Market Price
+global int db::maxOpenNotional;                           ;; max open notional in market
+global int db::feeToStakersPercent;                       ;; percent of fee to stakers (rest goes to vault) 
+global int db::maxOracleDelay;                            ;; k_maxOracleDelay
+global int db::totalPositionSize;
+
+global int db::quoteAssetReserve;        ;; Quote Asset Reserve (AMM)
+global int db::baseAssetReserve;         ;; Base Asset Reserve (AMM)
+global int db::quoteAssetWeight;         ;; Quote Asset Weight
+global int db::baseAssetWeight;        ;; Base Asset Weight
+global int db::totalLongPositionSize;        ;; Total LONG trader position size (in Base asset)
+global int db::totalShortPositionSize;         ;; Total SHORT trader position size (in Base asset)
+global int db::openInterestShort;        ;; Open Interest Notional (short)
+global int db::openInterestLong;         ;; Open Interest Notional (long)
+global int db::oraclePrice; 
+
+
+global slice trader_address;                                    ;; Trader address
+
+() load_data() impure inline {
+  slice ds = get_data().begin_parse();
+  db::balance = ds~load_coins();
+  db::oraclePrice = ds~load_uint(128);
+
+  var (
+    db::fee,
+    db::rolloverFee,
+    db::fundingPeriod,
+    db::initMarginRatio,
+    db::maintenanceMarginRatio,
+    db::liquidationFeeRatio,
+    db::partialLiquidationRatio,
+    db::spreadLimit,
+    db::maxPriceImpact,
+    db::maxPriceSpread,
+    db::maxOpenNotional,
+    db::feeToStakersPercent,
+    db::maxOracleDelay
+  ) = unpack_exchange_settings(ds~load_ref().begin_parse());
+
+  var (
+    db::quoteAssetReserve,
+    db::baseAssetReserve,
+    db::quoteAssetWeight,
+    db::totalLongPositionSize,
+    db::totalShortPositionSize,
+    db::openInterestShort,
+    db::openInterestLong
+  ) = unpack_amm_state(ds.preload_ref().begin_parse());
+
+  db::totalPositionSize = db::totalLongPositionSize - db::totalShortPositionSize;
+
+  return ();
+}
+
+() save_data() impure inline {
+  set_data(
+    begin_cell()
+      .store_coins(db::balance)
+      .store_uint(db::oraclePrice, 128)
+      .store_ref(pack_exchange_settings(
+        db::fee,
+        db::rolloverFee,
+        db::fundingPeriod,
+        db::initMarginRatio,
+        db::maintenanceMarginRatio,
+        db::liquidationFeeRatio,
+        db::partialLiquidationRatio,
+        db::spreadLimit,
+        db::maxPriceImpact,
+        db::maxPriceSpread,
+        db::maxOpenNotional,
+        db::feeToStakersPercent,
+        db::maxOracleDelay
+      ))
+      .store_ref(pack_amm_state(
+        db::quoteAssetReserve,
+        db::baseAssetReserve,
+        db::quoteAssetWeight,
+        db::totalLongPositionSize,
+        db::totalShortPositionSize,
+        db::openInterestShort,
+        db::openInterestLong
+      ))
+      .end_cell()
+  );
+}

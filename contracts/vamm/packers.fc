@@ -1,0 +1,95 @@
+{-
+  global int db::fee;                                       ;; Exchange fee. Default is 1%. 1/2 goes to stakers, 1/2 goes to insurance fund
+  global int db::rolloverFee;                               ;; Rollover fee per minute. Default 35% per year.
+  global int db::fundingPeriod;                             ;; Funding period. By default funding is paid once per hour
+  global int db::initMarginRatio;                           ;; Initial margin ratio. Controls how much leverage can be applied when position is created
+  global int db::maintenanceMarginRatio;                    ;; Maintenance margin ratio (MMR). When MR < MMR position can be liquidated
+  global int db::liquidationFeeRatio;                       ;; % of position size liquidator will get for himself. 1/2 of this goes to liquidator, 1/2 - to insurance fund
+  global int db::partialLiquidationRatio;                   ;; % of position notional that will be liquidated in case 0 < MR < MMR
+  global int db::spreadLimit;                               ;; abs((marketPrice - oraclePrice) / oraclePrice). If over spread limit, liquidations consult oracle price
+  global int db::maxPriceImpact;                            ;; maximum price impact per order
+  global int db::maxPriceSpread;                            ;; max spread between Index and Market Price
+  global int db::maxOpenNotional;                           ;; max open notional in market
+  global int db::feeToStakersPercent;                       ;; percent of fee to stakers (rest goes to vault) 
+  global int db::maxOracleDelay;                            ;; k_maxOracleDelay
+-}
+
+_ unpack_exchange_settings(slice ds) inline {
+  return (
+    ds~load_uint(32), ;; db::fee;                                      
+    ds~load_uint(32), ;; db::rolloverFee;                              
+    ds~load_uint(32), ;; db::fundingPeriod;                            
+    ds~load_uint(32), ;; db::initMarginRatio;                          
+    ds~load_uint(32), ;; db::maintenanceMarginRatio;                   
+    ds~load_uint(32), ;; db::liquidationFeeRatio;                      
+    ds~load_uint(32), ;; db::partialLiquidationRatio;                  
+    ds~load_uint(32), ;; db::spreadLimit;                              
+    ds~load_uint(32), ;; db::maxPriceImpact;                           
+    ds~load_uint(32), ;; db::maxPriceSpread;                           
+    ds~load_uint(128), ;; db::maxOpenNotional;                          
+    ds~load_uint(32), ;; db::feeToStakersPercent;                      
+    ds~load_uint(32) ;; db::maxOracleDelay;                           
+  );
+}
+
+cell pack_exchange_settings(
+  int fee,
+  int rolloverFee,
+  int fundingPeriod,
+  int initMarginRatio,
+  int maintenanceMarginRatio,
+  int liquidationFeeRatio,
+  int partialLiquidationRatio,
+  int spreadLimit,
+  int maxPriceImpact,
+  int maxPriceSpread,
+  int maxOpenNotional,
+  int feeToStakersPercent,
+  int maxOracleDelay) {
+  return begin_cell()
+            .store_uint(fee ,32) ;; db::fee;                                      
+            .store_uint(rolloverFee ,32) ;; db::rolloverFee;                              
+            .store_uint(fundingPeriod ,32) ;; db::fundingPeriod;                            
+            .store_uint(initMarginRatio ,32) ;; db::initMarginRatio;                          
+            .store_uint(maintenanceMarginRatio ,32) ;; db::maintenanceMarginRatio;                   
+            .store_uint(liquidationFeeRatio ,32) ;; db::liquidationFeeRatio;                      
+            .store_uint(partialLiquidationRatio ,32) ;; db::partialLiquidationRatio;                  
+            .store_uint(spreadLimit ,32) ;; db::spreadLimit;                              
+            .store_uint(maxPriceImpact ,32) ;; db::maxPriceImpact;                           
+            .store_uint(maxPriceSpread ,32) ;; db::maxPriceSpread;                           
+            .store_uint(maxOpenNotional ,128) ;; db::maxOpenNotional;                          
+            .store_uint(feeToStakersPercent ,32) ;; db::feeToStakersPercent;                      
+            .store_uint(maxOracleDelay ,32) ;; db::maxOracleDelay;                           
+            .end_cell();
+}
+
+_ unpack_amm_state(slice ds) inline {
+  return (
+    ds~load_uint(128), ;; quoteAssetReserve
+    ds~load_uint(128), ;; baseAssetReserve
+    ds~load_uint(32), ;; quoteAssetWeight
+    ds~load_uint(128), ;; totalLongPositionSize
+    ds~load_uint(128), ;; totalShortPositionSize
+    ds~load_uint(128), ;; openInterestLong
+    ds~load_uint(128) ;; openInterestShort
+  );
+}
+
+cell pack_amm_state(
+  int quoteAssetReserve,
+  int baseAssetReserve,
+  int quoteAssetWeight,
+  int totalLongPositionSize,
+  int totalShortPositionSize,
+  int openInterestLong,
+  int openInterestShort) {
+  return begin_cell()
+          .store_uint(quoteAssetReserve, 128)
+          .store_uint(baseAssetReserve, 128)
+          .store_uint(quoteAssetWeight, 32)
+          .store_int(totalLongPositionSize, 128)
+          .store_uint(totalShortPositionSize, 128)
+          .store_uint(openInterestLong, 128)
+          .store_uint(openInterestShort, 128)
+          .end_cell();
+}

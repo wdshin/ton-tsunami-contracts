@@ -1,0 +1,21 @@
+_ unpack_position_data(slice ds) {
+  return (
+    ds~load_int(128),         ;; size
+    ds~load_uint(128),        ;; margin
+    ds~load_uint(128),        ;; open_notional
+    ds~load_uint(128),        ;; last_updated_cumulative_premium
+    ds~load_uint(32),         ;; fee 
+    ds~load_uint(32)          ;; last_updated_timestamp
+  );
+}
+
+cell pack_position_data(int size, int margin, int open_notional, int last_updated_cumulative_premium, int fee, int last_updated_timestamp) {
+  return begin_cell()
+            .store_int(size, 128)
+            .store_uint(margin, 128)
+            .store_uint(open_notional, 128)
+            .store_uint(last_updated_cumulative_premium, 128)
+            .store_uint(fee, 32)
+            .store_uint(last_updated_timestamp, 32)
+            .end_cell();
+}

@@ -1,0 +1,519 @@
+#include "../trader_position_wallet/packers.fc";
+
+#include "./constants.fc";
+#include "./storage.fc";
+
+
+
+int divd(int _x, int _y) inline {
+  return muldiv(_x, DECIMAL_UNIT, _y);
+}
+int muld(int _x, int _y) inline {
+  return muldiv(_x, _y, DECIMAL_UNIT);
+}
+
+
+cell pack_position_init_data(slice trader_addr, slice vamm_addr) {
+  return begin_cell()
+          .store_slice(trader_addr)
+          .store_slice(vamm_addr)
+          .store_uint(0, 1) ;; is_busy
+          .store_ref(pack_position_data(0, 0, 0, 0, 0, 0))
+         .end_cell();
+}
+
+cell calculate_position_wallet_state_init(cell jetton_wallet_code, slice trader_addr, slice vamm_addr) inline {
+  return begin_cell()
+          .store_uint(0, 2)
+          .store_dict(jetton_wallet_code)
+          .store_dict(pack_position_init_data(trader_addr, vamm_addr))
+          .store_uint(0, 1)
+         .end_cell();
+}
+
+
+int requireMoreMarginRatio(int _marginRatio, int _baseMarginRatio, int _largerThanOrEqualTo) inline {
+  int remainingMarginRatio = _marginRatio - _baseMarginRatio;
+  if (_largerThanOrEqualTo & remainingMarginRatio < 0) {
+    return false;
+  } else {
+    if (~ _largerThanOrEqualTo & remainingMarginRatio >= 0) {
+      return false;
+    } else {
+      return true;
+    }
+  }
+}
+
+_ updateReserve(int _isAdd, int _quoteAssetAmount, int _baseAssetAmount) inline_ref {
+  if (_isAdd) {
+    int newBase = db::baseAssetReserve - _baseAssetAmount;
+    if (newBase <= 0) {
+      ;; throw("Tx lead to base asset reserve <= 0, revert");
+      return (0, 0);
+    } else {
+      return (
+        db::quoteAssetReserve + _quoteAssetAmount,
+        newBase
+      );
+    }
+  } else {
+    int newQuote = db::quoteAssetReserve - _quoteAssetAmount;
+    if (newQuote <= 0) {
+      ;; throw("Tx lead to base quote reserve <= 0, revert")
+      return (0, 0);
+    } else {
+      return (
+        newQuote,
+        db::baseAssetReserve + _baseAssetAmount
+      );
+    }
+  }
+}
+
+_ swapInput(int _isAdd, int _quoteAssetAmount) inline_ref {
+  int _qtAstR = db::quoteAssetReserve;
+  int _bsAstR = db::baseAssetReserve;
+  int _qtAstW = db::quoteAssetWeight;
+  int _bsAstW = DECIMAL_UNIT;
+
+  int quoteAssetAmountAdjusted = _quoteAssetAmount.divd(_qtAstW);
+
+  int k = muld(_qtAstR, _bsAstR);
+  int quoteAssetReserveAfter = _isAdd ? _qtAstR + quoteAssetAmountAdjusted : _qtAstR - quoteAssetAmountAdjusted;
+
+
+  int baseAssetReserveAfter = divd(k, quoteAssetReserveAfter);
+  int amountBaseAssetBoughtAbs = abs(baseAssetReserveAfter - _bsAstR);
+  int amountBaseAssetBought = _isAdd ? amountBaseAssetBoughtAbs : - amountBaseAssetBoughtAbs;
+  
+  var (
+    int quoteAssetReserveAfter1,
+    int baseAssetReserveAfter1
+  ) = updateReserve(_isAdd, quoteAssetAmountAdjusted, amountBaseAssetBoughtAbs);
+
+  return (
+    amountBaseAssetBought,
+    quoteAssetReserveAfter1,
+    baseAssetReserveAfter1
+  );
+
+  {-
+  int priceBefore = divd(_qtAstR.muld(_qtAstW), _bsAstR.muld(_bsAstW));
+  int marketPrice = divd(_quoteAssetAmount, amountBaseAssetBoughtAbs);
+  int priceDiff = abs(priceBefore - marketPrice);
+  int priceImpact = DECIMAL_UNIT - divd(priceBefore, (priceBefore + priceDiff));
+
+  int maxPriceImpactValue = maxPriceImpact()
+  if (priceImpact > maxPriceImpactValue) then {
+    throw("Price impact " + priceImpact.toString() + " > max price impact " + maxPriceImpactValue.toString() 
+      + " before quote asset: " + _qtAstR.toString()
+      + " before base asset: " + _bsAstR.toString()
+      + " quote asset amount to exchange: " + _quoteAssetAmount.toString()
+      + " price before: " + priceBefore.toString()
+      + " marketPrice: " + marketPrice.toString()
+    )
+  } else {
+    (
+      amountBaseAssetBought,
+      quoteAssetReserveAfter1,
+      baseAssetReserveAfter1,
+      totalPositionSizeAfter1
+    )
+  }
+  -}
+}
+
+;; ;; Computes position remaining margin with regards fof funding payment, rollover fee
+;; ;; and optionally applying a marginDelta - PnL or new margin (in case of position increase)
+_ calcRemainMarginWithFundingPaymentAndRolloverFee(
+  int _oldPositionSize, 
+  int _oldPositionMargin, 
+  int _oldPositionCumulativePremiumFraction,
+  int _oldPositionLastUpdatedTimestamp,
+  int _marginDelta
+) inline_ref {
+  int fundingPayment = 0;
+  ;; if (_oldPositionSize != 0) {
+  ;;   int _latestCumulativePremiumFraction = latestCumulativePremiumFraction(_oldPositionSize);
+  ;;   fundingPayment = muld((_latestCumulativePremiumFraction - _oldPositionCumulativePremiumFraction), _oldPositionSize);
+  ;; }
+
+  ;; int rolloverFee = calcRolloverFee(_oldPositionMargin, _oldPositionLastUpdatedTimestamp);
+  int rolloverFee = 0;
+  int signedMargin = _marginDelta - rolloverFee - fundingPayment + _oldPositionMargin;
+  var (int remainMargin, int badDebt) = signedMargin < 0 ? (0, abs(signedMargin)) : (abs(signedMargin), 0);
+
+  return (remainMargin, badDebt, fundingPayment, rolloverFee);
+}
+
+int getQuoteAssetWeight(
+  int b,
+  int sz,
+  int q,
+  int p
+) inline {
+  int k = muld(q, b);
+  int newB = b + sz;
+  int newQ = divd(k, newB);
+  int z = divd(newQ, newB);
+  return divd(p, z);
+}
+
+_ getSyncTerminalPrice(int _terminalPrice, int _qtAstR, int _bsAstR) inline {
+  int _positionSize = db::totalPositionSize;
+  if (_positionSize == 0) {
+    int newQtAstW = divd(_terminalPrice.muld(_bsAstR), _qtAstR);
+    return (newQtAstW);
+  } else {
+    ;; Compute new qW and bW
+    int newQtAstW = getQuoteAssetWeight(_bsAstR, _positionSize, _qtAstR, _terminalPrice);
+
+    return (newQtAstW);
+  }
+}
+
+_ swapOutputWithReserves(
+  int _isAdd, 
+  int _baseAssetAmount,
+  int _checkMaxPriceImpact,
+  int _quoteAssetReserve,
+  int _quoteAssetWeight,
+  int _baseAssetReserve,
+  int _baseAssetWeight
+) inline {
+  ;; Price before is computed to check for max price impact during trader
+  int priceBefore = divd(_quoteAssetReserve.muld(_quoteAssetWeight), _baseAssetReserve.muld(_baseAssetWeight));
+
+  ;; TODO: handle _baseAssetAmount == 0
+  ;;  throw("Invalid base asset amount") 
+
+    int k = muld(_quoteAssetReserve, _baseAssetReserve);
+    int baseAssetPoolAmountAfter = _isAdd ? _baseAssetReserve + _baseAssetAmount : _baseAssetReserve - _baseAssetAmount;
+
+    int quoteAssetAfter = divd(k, baseAssetPoolAmountAfter);
+    int quoteAssetDelta = abs(quoteAssetAfter - _quoteAssetReserve);
+    int quoteAssetSold = quoteAssetDelta.muld(_quoteAssetWeight);
+
+    ;; int maxPriceImpactValue = maxPriceImpact();
+
+
+    var (
+      int quoteAssetReserveAfter1,
+      int baseAssetReserveAfter1
+    ) = updateReserve(~ _isAdd, quoteAssetDelta, _baseAssetAmount);
+
+    {-
+    
+    int marketPrice = divd(quoteAssetSold, _baseAssetAmount)
+    int priceDiff = abs(priceBefore - marketPrice)
+    int priceImpact = DECIMAL_UNIT - divd(priceBefore, (priceBefore + priceDiff))
+    
+    if (priceImpact > maxPriceImpactValue && _checkMaxPriceImpact) then {
+      throw("Price impact " + priceImpact.toString() + " > max price impact " + maxPriceImpactValue.toString() 
+        + " before quote asset: " + _quoteAssetReserve.toString()
+        + " before base asset: " + _baseAssetReserve.toString()
+        + " base asset amount to exchange: " + _baseAssetAmount.toString()
+        + " price before: " + priceBefore.toString()
+        + " market price: " + marketPrice.toString()
+      )
+    } else {
+      (
+        quoteAssetSold,
+        quoteAssetReserveAfter1,
+        baseAssetReserveAfter1,
+        totalPositionSizeAfter1,
+        totalLongPositionSize()  - if (_isAdd)  then abs(_baseAssetAmount) else 0,
+        totalShortPositionSize() - if (!_isAdd) then abs(_baseAssetAmount) else 0,
+        priceImpact
+      )
+    }
+    -}
+    return (
+      quoteAssetSold,
+        quoteAssetReserveAfter1,
+        baseAssetReserveAfter1,
+        db::totalLongPositionSize - (_isAdd ? abs(_baseAssetAmount) : 0),
+        db::totalShortPositionSize - (~ _isAdd ? abs(_baseAssetAmount) : 0),
+        0
+    );
+}
+
+
+_ swapOutput(
+  int _isAdd,
+  int _baseAssetAmount,
+  int _checkMaxPriceImpact
+) inline {
+  return swapOutputWithReserves(
+    _isAdd,
+    _baseAssetAmount,
+    _checkMaxPriceImpact,
+    db::quoteAssetReserve,
+    db::quoteAssetWeight,
+    db::baseAssetReserve,
+    DECIMAL_UNIT
+  );
+}
+
+_ getPositionAdjustedOpenNotional(
+  int _positionSize, 
+  int _option,
+  int _quoteAssetReserve,
+  int _quoteAssetWeight,
+  int _baseAssetReserve,
+  int _baseAssetWeight
+) inline {
+  int positionSizeAbs = abs(_positionSize);
+  int isShort = _positionSize < 0;
+  int positionNotional = 0;
+  if (_option == PNL_OPTION_SPOT) {
+    var (positionNotional, _, _, _, _, _) = swapOutputWithReserves(
+      ~ isShort,
+      positionSizeAbs,
+      false,
+      _quoteAssetReserve,
+      _quoteAssetWeight,
+      _baseAssetReserve,
+      _baseAssetWeight
+    );
+  } else {
+    positionNotional = muld(positionSizeAbs, db::oraclePrice);
+  }
+
+  return positionNotional;
+}
+
+_ getPositionNotionalAndUnrealizedPnlByValues(
+    int _positionSize, 
+    int _positionOpenNotional, 
+    int _quoteAssetReserve,
+    int _quoteAssetWeight,
+    int _baseAssetReserve,
+    int _baseAssetWeight,
+    int _option
+  ) inline_ref {
+    ;; TODO: check _positionSize == 0
+    ;; throw("Invalid position size")
+
+      int isShort = _positionSize < 0;
+      int positionNotional = getPositionAdjustedOpenNotional(
+        _positionSize,
+        _option,
+        _quoteAssetReserve,
+        _quoteAssetWeight,
+        _baseAssetReserve,
+        _baseAssetWeight
+      );
+
+      int unrealizedPnl = isShort ? _positionOpenNotional - positionNotional : positionNotional - _positionOpenNotional;
+      return (
+        positionNotional,
+        unrealizedPnl
+      );
+}
+
+int calcMarginRatio(int _remainMargin, int _badDebt, int _positionNotional) inline {
+  return divd(_remainMargin - _badDebt, _positionNotional);
+}
+
+_ getMarginRatioByOption(
+  int _positionSize,
+  int _positionMargin,
+  int _positionOpenNotional,
+  int _positionLastUpdatedCPF,
+  int _positionTimestamp,
+  int _option
+) inline {
+
+    var (int positionNotional, int unrealizedPnl) = getPositionNotionalAndUnrealizedPnlByValues(_positionSize, _positionOpenNotional, db::quoteAssetReserve, db::quoteAssetWeight, db::baseAssetReserve, DECIMAL_UNIT, _option);
+    var (int remainMargin, int badDebt, _, _) = calcRemainMarginWithFundingPaymentAndRolloverFee(
+        _positionSize,
+        _positionMargin,
+        _positionLastUpdatedCPF,
+        _positionTimestamp,
+        unrealizedPnl
+    );
+    return calcMarginRatio(remainMargin, badDebt, positionNotional);
+}
+
+_ internalClosePosition(
+  int oldPositionSize,
+  int oldPositionMargin,
+  int oldPositionOpenNotional,
+  int oldPositionLastUpdatedCPF, 
+  int oldPositionTimestamp,
+  int _size, 
+  int _fee, 
+  int _minQuoteAssetAmount,
+  int _addToMargin,
+  int _checkMaxPriceImpact,
+  int _liquidate) inline_ref {
+  int isLongPosition = oldPositionSize > 0;
+  int absOldPositionSize = abs(oldPositionSize);
+
+  ;; TODO: handle this
+  ;; if (~ ((_size <= absOldPositionSize) & (_size > 0))) {
+  ;; }
+    int isPartialClose = _size < absOldPositionSize;
+    ;; Swap _size amount of position for exchangedQuoteAssetAmount of quote asset
+    var (
+      int exchangedQuoteAssetAmount,
+      int quoteAssetReserveAfter, 
+      int baseAssetReserveAfter,
+      int totalPositionSizeAfter,
+      _,
+      _
+    ) = swapOutput(
+      oldPositionSize > 0,
+      _size,
+      _checkMaxPriceImpact);
+
+    ;; exchangedPositionSize should always have a sign opposite to position
+    ;; if position is short (-500) then +100 will decrease it (make it -400)
+    ;; if position is long (500) then -100 will decrease it (make it 400)
+    int exchangedPositionSize = oldPositionSize > 0 ? (- _size) : _size;
+
+    ;; Compute actual notional value of position (notional value + pnl - funding)
+    ;; and use it as a base to compute fee
+    var (
+      int oldPositionNotional, 
+      int unrealizedPnl
+    ) = getPositionNotionalAndUnrealizedPnlByValues(
+      oldPositionSize,
+      oldPositionOpenNotional,
+      db::quoteAssetReserve,
+      db::quoteAssetWeight,
+      db::baseAssetReserve,
+      DECIMAL_UNIT,
+      PNL_OPTION_SPOT
+    );
+
+    ;; Compute how much (in %) of position we are closing
+    int realizedRatio = divd(abs(exchangedPositionSize), absOldPositionSize);
+
+    ;; Realize PnL proportionally to the size of position being closed
+    int realizedPnl = muld(unrealizedPnl, realizedRatio);
+
+    ;; Get actual position margin *before* closing part of position 
+    ;; and badDebt *after* part of PnL is realized
+    var (int remainMarginBefore, int x1, int x2, int rolloverFee) = 
+      calcRemainMarginWithFundingPaymentAndRolloverFee(
+        oldPositionSize,
+        oldPositionMargin,
+        oldPositionLastUpdatedCPF,
+        oldPositionTimestamp,
+        unrealizedPnl
+      );
+
+    (_, int positionBadDebt, _, _) = 
+      calcRemainMarginWithFundingPaymentAndRolloverFee(
+        oldPositionSize,
+        oldPositionMargin,
+        oldPositionLastUpdatedCPF,
+        oldPositionTimestamp,
+        realizedPnl
+      );
+
+    ;; Realize fee (both close fee and rollover fee) proportionally to the size of position being closed
+    int realizedFee = muld(oldPositionNotional, realizedRatio).muld(_fee) + rolloverFee.muld(realizedRatio);
+
+    int unrealizedPnlAfter = unrealizedPnl - realizedPnl;
+    
+    ;; Compute new position notional value, keeping unrealized PnL unrealized
+    ;; ex. long position
+    ;; oldPositionNotional = 900 including -100 negative PnL
+    ;; exchangedQuoteAssetAmount = 300 ~ 1/3 of position
+    ;; unrealizedPnlAfter = 70 ~ 1/3 of position
+    ;; remainOpenNotional = 900 - 300 - (-70) = 670, so it will be 600 after deducing PnL
+   
+    int remainOpenNotional = oldPositionSize > 0 ? 
+      (oldPositionNotional - exchangedQuoteAssetAmount - unrealizedPnlAfter) 
+      : unrealizedPnlAfter + oldPositionNotional - exchangedQuoteAssetAmount;
+
+    ;; exchangedPositionSize is always in different sign then oldPositionSize so always reduces position
+    int newPositionSize = oldPositionSize + exchangedPositionSize;
+
+    ;; If newPositionSize == 0 then we do not have to update CPF and notional.
+    ;; forcing notional to be 0 helps prevent minor rounding mistakes
+   
+    (int newPositionOpenNotional, int newPositionLstUpdCPF) = newPositionSize == 0 ? 
+      (0, 0) : 
+      (abs(remainOpenNotional), 0);
+
+    ;; Compute notional delta, that will be help us reduce it from cumulative notional.
+    ;; Note, that cumulative notional is always added and subtracted without regards for PnL
+    int openNotionalDelta = oldPositionOpenNotional - newPositionOpenNotional;
+
+    ;; When partially closing a position AND removing part of margin to send to trader, position
+    ;; should keep EXACTLY the margin ration it is currently on.
+    int marginRatio = getMarginRatioByOption(oldPositionSize, oldPositionMargin, oldPositionOpenNotional, oldPositionLastUpdatedCPF, oldPositionTimestamp, PNL_OPTION_SPOT);
+    int newPositionMarginWithSameRatio = oldPositionSize > 0 ?
+      muld(newPositionOpenNotional + unrealizedPnlAfter, marginRatio) - unrealizedPnlAfter
+      : muld(newPositionOpenNotional - unrealizedPnlAfter, marginRatio) - unrealizedPnlAfter;
+    
+    ;; This is how much margin we can return back to the trader, while position is closed while keeping MR the same
+   
+    int marginToTraderRaw = remainMarginBefore - (newPositionMarginWithSameRatio + unrealizedPnlAfter) - realizedFee;
+
+    int marginToTrader = 0;
+    if (marginToTraderRaw < 0) {
+      ifnot (_liquidate) {
+        ;; TODO: if marginToTraderRaw < 0 & ~ _liquidate => throw("Invalid internalClosePosition params: unable to pay fee")
+      }
+    } else {
+      marginToTrader = marginToTraderRaw;
+    }
+
+    ;; If user opted for adding free margin back to position margin he can increase position MR.
+    ;; This is basically realized profit / loss and use it to increase MR of a current position.
+    ;; Used in partial liquidations as well.
+    int newPositionMargin = _addToMargin ? newPositionMarginWithSameRatio + marginToTrader : newPositionMarginWithSameRatio;
+    
+    ;; Finally check slippage tolerance settings. It will always be 0 for liquidation.
+  ;;   if (_minQuoteAssetAmount != 0 && exchangedQuoteAssetAmount < _minQuoteAssetAmount) then {
+  ;;     throw("Limit error: " + exchangedQuoteAssetAmount.toString() + " < " + _minQuoteAssetAmount.toString())
+  ;;   } else {
+  ;;     (
+  ;;       newPositionSize,
+  ;;       newPositionMargin,
+  ;;       newPositionOpenNotional,
+  ;;       newPositionLstUpdCPF,
+  ;;       positionBadDebt,
+  ;;       realizedPnl,
+  ;;       if (_addToMargin && isPartialClose) then 0 else marginToTrader,
+  ;;       quoteAssetReserveAfter,
+  ;;       baseAssetReserveAfter,
+  ;;       totalPositionSizeAfter,
+  ;;       openInterestNotional() - openNotionalDelta,
+  ;;       totalLongPositionSize() - if (isLongPosition) then abs(exchangedPositionSize) else 0,
+  ;;       totalShortPositionSize() - if (!isLongPosition) then abs(exchangedPositionSize) else 0,
+  ;;       openInterestLong() - if (isLongPosition) then openNotionalDelta else 0,
+  ;;       openInterestShort() - if (!isLongPosition) then openNotionalDelta else 0,
+  ;;       realizedFee,
+  ;;       exchangedQuoteAssetAmount
+  ;;     )
+  ;;   }
+  ;; } else {
+  ;;   throw("Invalid internalClosePosition params: invalid position size")
+  ;; }
+  return (
+        newPositionSize,
+        newPositionMargin,
+        newPositionOpenNotional,
+        newPositionLstUpdCPF,
+        positionBadDebt,
+        realizedPnl,
+        (_addToMargin & isPartialClose) ? 0 : marginToTrader,
+        quoteAssetReserveAfter,
+        baseAssetReserveAfter,
+        ;; totalPositionSizeAfter,
+        ;; openInterestNotional() - openNotionalDelta,
+        db::totalLongPositionSize - (isLongPosition) ? abs(exchangedPositionSize) : 0,
+        db::totalShortPositionSize - (~ isLongPosition) ? abs(exchangedPositionSize) : 0,
+        db::openInterestLong - (isLongPosition) ? openNotionalDelta : 0,
+        db::openInterestShort - (~ isLongPosition) ? openNotionalDelta : 0,
+        realizedFee,
+        exchangedQuoteAssetAmount
+  );
+}

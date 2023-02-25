@@ -1,0 +1,2 @@
+const direction::long = 0;
+const direction::short = 1;

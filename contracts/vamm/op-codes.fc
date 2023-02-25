@@ -1,0 +1,3 @@
+const op::increase_position = "op::increase_position"c;
+const op::close_position = "op::close_position"c;
+const op::temp_set_price = "op::temp_set_price"c;
