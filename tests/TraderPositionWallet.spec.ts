@@ -1,93 +1,103 @@
-import { Blockchain } from '@ton-community/sandbox';
-import { Cell, toNano } from 'ton-core';
-import { TraderPositionWallet } from '../wrappers/TraderPositionWallet';
 import '@ton-community/test-utils';
+import { Blockchain } from '@ton-community/sandbox';
 import { compile } from '@ton-community/blueprint';
+import { Cell, toNano } from 'ton-core';
+
+import { TraderPositionWallet } from '../wrappers/TraderPositionWallet';
 
 describe('TraderPositionWallet', () => {
-    let code: Cell;
+  let code: Cell;
 
-    beforeAll(async () => {
-        code = await compile('TraderPositionWallet');
+  beforeAll(async () => {
+    code = await compile('TraderPositionWallet');
+  });
+
+  it('should deploy', async () => {
+    const blockchain = await Blockchain.create();
+
+    const traderPositionWallet = blockchain.openContract(
+      TraderPositionWallet.createFromConfig(
+        {
+          id: 0,
+          counter: 0,
+        },
+        code
+      )
+    );
+
+    const deployer = await blockchain.treasury('deployer');
+
+    const deployResult = await traderPositionWallet.sendDeploy(
+      deployer.getSender(),
+      toNano('0.05')
+    );
+
+    expect(deployResult.transactions).toHaveTransaction({
+      from: deployer.address,
+      to: traderPositionWallet.address,
+      deploy: true,
+    });
+  });
+
+  it('should increase counter', async () => {
+    const blockchain = await Blockchain.create();
+
+    const traderPositionWallet = blockchain.openContract(
+      TraderPositionWallet.createFromConfig(
+        {
+          id: 0,
+          counter: 0,
+        },
+        code
+      )
+    );
+
+    const deployer = await blockchain.treasury('deployer');
+
+    const deployResult = await traderPositionWallet.sendDeploy(
+      deployer.getSender(),
+      toNano('0.05')
+    );
+
+    expect(deployResult.transactions).toHaveTransaction({
+      from: deployer.address,
+      to: traderPositionWallet.address,
+      deploy: true,
     });
 
-    it('should deploy', async () => {
-        const blockchain = await Blockchain.create();
+    const increaseTimes = 3;
+    for (let i = 0; i < increaseTimes; i++) {
+      console.log(`increase ${i + 1}/${increaseTimes}`);
 
-        const traderPositionWallet = blockchain.openContract(
-            TraderPositionWallet.createFromConfig(
-                {
-                    id: 0,
-                    counter: 0,
-                },
-                code
-            )
-        );
+      const increaser = await blockchain.treasury('increaser' + i);
 
-        const deployer = await blockchain.treasury('deployer');
+      const counterBefore = await traderPositionWallet.getCounter();
 
-        const deployResult = await traderPositionWallet.sendDeploy(deployer.getSender(), toNano('0.05'));
+      console.log('counter before increasing', counterBefore);
 
-        expect(deployResult.transactions).toHaveTransaction({
-            from: deployer.address,
-            to: traderPositionWallet.address,
-            deploy: true,
-        });
-    });
+      const increaseBy = Math.floor(Math.random() * 100);
 
-    it('should increase counter', async () => {
-        const blockchain = await Blockchain.create();
+      console.log('increasing by', increaseBy);
 
-        const traderPositionWallet = blockchain.openContract(
-            TraderPositionWallet.createFromConfig(
-                {
-                    id: 0,
-                    counter: 0,
-                },
-                code
-            )
-        );
-
-        const deployer = await blockchain.treasury('deployer');
-
-        const deployResult = await traderPositionWallet.sendDeploy(deployer.getSender(), toNano('0.05'));
-
-        expect(deployResult.transactions).toHaveTransaction({
-            from: deployer.address,
-            to: traderPositionWallet.address,
-            deploy: true,
-        });
-
-        const increaseTimes = 3;
-        for (let i = 0; i < increaseTimes; i++) {
-            console.log(`increase ${i + 1}/${increaseTimes}`);
-
-            const increaser = await blockchain.treasury('increaser' + i);
-
-            const counterBefore = await traderPositionWallet.getCounter();
-
-            console.log('counter before increasing', counterBefore);
-
-            const increaseBy = Math.floor(Math.random() * 100);
-
-            console.log('increasing by', increaseBy);
-
-            const increaseResult = await traderPositionWallet.sendIncrease(increaser.getSender(), {
-                increaseBy,
-                value: toNano('0.05'),
-            });
-
-            expect(increaseResult.transactions).toHaveTransaction({
-                from: increaser.address,
-                to: traderPositionWallet.address,
-                success: true,
-            });
-
-            const counterAfter = await traderPositionWallet.getCounter();
-
-            console.log('counter after increasing', counterAfter);
-
-            expect(counterAfter).toBe(counterBefore + increaseBy);
+      const increaseResult = await traderPositionWallet.sendIncrease(
+        increaser.getSender(),
+        {
+          increaseBy,
+          value: toNano('0.05'),
         }
-    });
+      );
+
+      expect(increaseResult.transactions).toHaveTransaction({
+        from: increaser.address,
+        to: traderPositionWallet.address,
+        success: true,
+      });
+
+      const counterAfter = await traderPositionWallet.getCounter();
+
+      console.log('counter after increasing', counterAfter);
+
+      expect(counterAfter).toBe(counterBefore + increaseBy);
+    }
+  });
 });

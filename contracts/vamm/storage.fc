@@ -29,6 +29,16 @@ global int db::oraclePrice;
 
 global slice trader_address;                                    ;; Trader address
 
+_ load_raw_data() impure inline {
+  slice ds = get_data().begin_parse();
+  return (
+    ds~load_coins(),
+    ds~load_uint(128),
+    ds~load_ref(),
+    ds.preload_ref()
+  );
+}
+
 () load_data() impure inline {
   slice ds = get_data().begin_parse();
   db::balance = ds~load_coins();

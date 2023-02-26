@@ -3,8 +3,6 @@
 #include "./constants.fc";
 #include "./storage.fc";
 
-
-
 int divd(int _x, int _y) inline {
   return muldiv(_x, DECIMAL_UNIT, _y);
 }
@@ -19,7 +17,7 @@ cell pack_position_init_data(slice trader_addr, slice vamm_addr) {
           .store_slice(vamm_addr)
           .store_uint(0, 1) ;; is_busy
           .store_ref(pack_position_data(0, 0, 0, 0, 0, 0))
-         .end_cell();
+          .end_cell();
 }
 
 cell calculate_position_wallet_state_init(cell jetton_wallet_code, slice trader_addr, slice vamm_addr) inline {
@@ -28,16 +26,16 @@ cell calculate_position_wallet_state_init(cell jetton_wallet_code, slice trader_
           .store_dict(jetton_wallet_code)
           .store_dict(pack_position_init_data(trader_addr, vamm_addr))
           .store_uint(0, 1)
-         .end_cell();
+          .end_cell();
 }
 
 
 int requireMoreMarginRatio(int _marginRatio, int _baseMarginRatio, int _largerThanOrEqualTo) inline {
   int remainingMarginRatio = _marginRatio - _baseMarginRatio;
-  if (_largerThanOrEqualTo & remainingMarginRatio < 0) {
+  if (_largerThanOrEqualTo & (remainingMarginRatio < 0)) {
     return false;
   } else {
-    if (~ _largerThanOrEqualTo & remainingMarginRatio >= 0) {
+    if (~ _largerThanOrEqualTo & (remainingMarginRatio >= 0)) {
       return false;
     } else {
       return true;
@@ -80,12 +78,12 @@ _ swapInput(int _isAdd, int _quoteAssetAmount) inline_ref {
   int quoteAssetAmountAdjusted = _quoteAssetAmount.divd(_qtAstW);
 
   int k = muld(_qtAstR, _bsAstR);
-  int quoteAssetReserveAfter = _isAdd ? _qtAstR + quoteAssetAmountAdjusted : _qtAstR - quoteAssetAmountAdjusted;
+  int quoteAssetReserveAfter = _isAdd ? (_qtAstR + quoteAssetAmountAdjusted) : (_qtAstR - quoteAssetAmountAdjusted);
 
 
   int baseAssetReserveAfter = divd(k, quoteAssetReserveAfter);
   int amountBaseAssetBoughtAbs = abs(baseAssetReserveAfter - _bsAstR);
-  int amountBaseAssetBought = _isAdd ? amountBaseAssetBoughtAbs : - amountBaseAssetBoughtAbs;
+  int amountBaseAssetBought = _isAdd ? amountBaseAssetBoughtAbs : (- amountBaseAssetBoughtAbs);
   
   var (
     int quoteAssetReserveAfter1,

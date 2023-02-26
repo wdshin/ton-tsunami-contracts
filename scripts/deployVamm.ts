@@ -1,19 +1,13 @@
 import { toNano } from 'ton-core';
-import { Vamm } from '../wrappers/Vamm';
+import { Vamm } from '../wrappers/Vamm/Vamm';
 import { compile, NetworkProvider } from '@ton-community/blueprint';
+import { initVammData } from '../wrappers/Vamm/Vamm.data';
 
 export async function run(provider: NetworkProvider) {
-    const vamm = Vamm.createFromConfig(
-        {
-            id: Math.floor(Math.random() * 10000),
-            counter: 0,
-        },
-        await compile('Vamm')
-    );
+  const vamm = Vamm.createFromConfig(initVammData, await compile('Vamm'));
 
-    await provider.deploy(vamm, toNano('0.05'));
+  await provider.deploy(vamm, toNano('0.05'));
 
-    const openedContract = provider.open(vamm);
-
-    console.log('ID', await openedContract.getID());
+  const openedContract = provider.open(vamm);
+  console.log('init amm data:', await openedContract.getAmmData());
 }

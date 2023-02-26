@@ -1,93 +1,80 @@
-import { Blockchain } from '@ton-community/sandbox';
-import { Cell, toNano } from 'ton-core';
-import { Vamm } from '../wrappers/Vamm';
 import '@ton-community/test-utils';
 import { compile } from '@ton-community/blueprint';
+import { Blockchain } from '@ton-community/sandbox';
+import { Cell, toNano } from 'ton-core';
+
+import { IncreasePositionBody, Vamm } from '../wrappers/Vamm';
+import { initVammData } from '../wrappers/Vamm/Vamm.data';
+import {
+  PositionData,
+  unpackPositionData,
+} from '../wrappers/TraderPositionWallet';
+import { toStablecoin } from '../utils';
 
 describe('Vamm', () => {
-    let code: Cell;
+  let code: Cell;
 
-    beforeAll(async () => {
-        code = await compile('Vamm');
+  beforeAll(async () => {
+    code = await compile('Vamm');
+  });
+
+  it('should increase position', async () => {
+    const blockchain = await Blockchain.create();
+    blockchain.verbosity = 'vm_logs';
+
+    const vamm = blockchain.openContract(
+      Vamm.createFromConfig(initVammData, code)
+    );
+
+    const deployer = await blockchain.treasury('deployer');
+
+    await deployer.send({
+      init: vamm.init!,
+      value: toNano('0.5'),
+      to: vamm.address,
+      bounce: false,
     });
 
-    it('should deploy', async () => {
-        const blockchain = await Blockchain.create();
+    const trader = await blockchain.treasury('trader');
 
-        const vamm = blockchain.openContract(
-            Vamm.createFromConfig(
-                {
-                    id: 0,
-                    counter: 0,
-                },
-                code
-            )
-        );
+    const oldPosition: PositionData = {
+      size: 0n,
+      margin: 0n,
+      openNotional: 0n,
+      lastUpdatedCumulativePremium: 0n,
+      fee: 0n,
+      lastUpdatedTimestamp: 0n,
+    };
+    const increasePositionBody: IncreasePositionBody = {
+      direction: 1,
+      leverage: toStablecoin(2),
+      minBaseAssetAmount: toStablecoin(10),
+      traderAddress: trader.address,
+    };
 
-        const deployer = await blockchain.treasury('deployer');
+    const increaser = await blockchain.treasury('increaser');
 
-        const deployResult = await vamm.sendDeploy(deployer.getSender(), toNano('0.05'));
-
-        expect(deployResult.transactions).toHaveTransaction({
-            from: deployer.address,
-            to: vamm.address,
-            deploy: true,
-        });
+    const increaseResult = await increaser.send({
+      to: vamm.address,
+      value: toNano('0.5'),
+      body: Vamm.increasePosition({
+        amount: toStablecoin(200),
+        oldPosition,
+        increasePositionBody,
+      }),
     });
 
-    it('should increase counter', async () => {
-        const blockchain = await Blockchain.create();
-
-        const vamm = blockchain.openContract(
-            Vamm.createFromConfig(
-                {
-                    id: 0,
-                    counter: 0,
-                },
-                code
-            )
-        );
-
-        const deployer = await blockchain.treasury('deployer');
-
-        const deployResult = await vamm.sendDeploy(deployer.getSender(), toNano('0.05'));
-
-        expect(deployResult.transactions).toHaveTransaction({
-            from: deployer.address,
-            to: vamm.address,
-            deploy: true,
-        });
-
-        const increaseTimes = 3;
-        for (let i = 0; i < increaseTimes; i++) {
-            console.log(`increase ${i + 1}/${increaseTimes}`);
-
-            const increaser = await blockchain.treasury('increaser' + i);
-
-            const counterBefore = await vamm.getCounter();
-
-            console.log('counter before increasing', counterBefore);
-
-            const increaseBy = Math.floor(Math.random() * 100);
-
-            console.log('increasing by', increaseBy);
-
-            const increaseResult = await vamm.sendIncrease(increaser.getSender(), {
-                increaseBy,
-                value: toNano('0.05'),
-            });
-
-            expect(increaseResult.transactions).toHaveTransaction({
-                from: increaser.address,
-                to: vamm.address,
-                success: true,
-            });
-
-            const counterAfter = await vamm.getCounter();
-
-            console.log('counter after increasing', counterAfter);
-
-            expect(counterAfter).toBe(counterBefore + increaseBy);
-        }
+    expect(increaseResult.transactions).toHaveTransaction({
+      from: vamm.address,
+      to: increaser.address,
     });
+
+    const lastTx = increaseResult.events.at(-1);
+
+    if (lastTx?.type === 'message_sent') {
+      const newPosition = unpackPositionData(lastTx.body);
+      console.log({ oldPosition });
+      console.log({ newPosition });
+    }
+  });
 });

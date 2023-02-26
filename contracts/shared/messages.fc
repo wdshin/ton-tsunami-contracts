@@ -16,13 +16,13 @@ const mode::carry_all_balance = 128;
   send_raw_message(msg, mode);
 }
 
-() send_simple_message(int amount, slice to, cell body, int mode) impure inline_ref {
+() send_simple_message(int amount, slice to, builder body, int mode) impure inline_ref {
   cell msg = begin_cell()
         .store_uint(0x18, 6)
         .store_slice(to)
         .store_coins(amount)
-        .store_uint(1, 107)
-        .store_ref(body)
+        .store_uint(0, 107)
+        .store_builder(body)
     .end_cell();
   send_raw_message(msg, mode);
 }

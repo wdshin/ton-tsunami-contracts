@@ -3,6 +3,7 @@
 #include "shared/stdlib.fc";
 #include "shared/jetton-utils.fc";
 #include "shared/op-codes.fc";
+#include "shared/messages.fc";
 
 #include "vamm/op-codes.fc";
 #include "vamm/constants.fc";
@@ -81,12 +82,12 @@
         int min_base_asset_amount = payload_s~load_uint(128);
         slice trader_addr = payload_s~load_msg_addr();
 
-
         ;; Check...
         ;; TODO: check asset on router
         if ((direction != direction::long) & (direction != direction::short) 
         | ~ requireMoreMarginRatio(divd(DECIMAL_UNIT, leverage), db::initMarginRatio, true)
         ) {
+            ~dump(401);
             ;; TODO: cant throw, revert amount back 
             return ();
         }
@@ -98,7 +99,7 @@
             int old_position_margin,
             int old_position_open_notional,
             int old_position_last_updated_cumulative_premium,
-            int old_position_fee,  ;; fee
+            int old_position_fee,
             int old_position_last_updated_timestamp) = unpack_position_data(position_s);
 
 
@@ -107,7 +108,9 @@
         int expandExisting = (~ isNewPosition) & isSameDirection;
         int isAdd = direction == direction::long;
 
+
         if (~ (isNewPosition | expandExisting)) {
+            ~dump(402);
             ;; TODO: cant throw, revert amount back 
             return ();
         }
@@ -148,22 +151,13 @@
         db::baseAssetReserve =  baseAssetReserveAfter;
         db::balance += _amount;
 
-        var new_position_ref = pack_position_data(newPositionSize, newPositionMargin, newPositionOpenNotional, 0, old_position_fee, now());
+        cell new_position_ref = pack_position_data(newPositionSize, newPositionMargin, newPositionOpenNotional, 0, old_position_fee, now());
+        var new_position_body = begin_cell().store_uint(op::update_position,32).store_ref(new_position_ref);
+
         ;; send message to update and unlock trader position;
+        send_simple_message(999, sender_addr, new_position_body, 1);
 
-
-
-
-        ;; updatePosition(
-        ;;     _trader,
-        ;;     newPositionSize,
-        ;;     newPositionRemainMargin,
-        ;;     newPositionOpenNotional,
-        ;;     newPositionLatestCPF,
-        ;;     newPositionTimestamp
-        ;; );
-
-
+        ~dump(666);
         
         save_data();
         return ();
@@ -231,10 +225,5 @@
 }
 
 _ get_amm_data() method_id {
-    slice ds = get_data().begin_parse();
-    return (
-        ds~load_coins(),
-        ds~load_ref(),
-        ds.preload_ref()
-    );
+    return load_raw_data();
 }
