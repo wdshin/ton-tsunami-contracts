@@ -140,8 +140,8 @@ describe('Vamm', () => {
     );
 
     expect(newPosition.size).toBe(814882n);
-    // expect(newPosition.margin).toBe(14946194n); // 14946193n
-    // expect(newPosition.openNotional).toBe(44838582n); // 44838579n
+    expect(newPosition.margin).toBe(14946194n);
+    expect(newPosition.openNotional).toBe(44838582n);
     lastPosition = newPosition;
 
     const { ammState } = await vamm.getAmmData();
@@ -149,7 +149,7 @@ describe('Vamm', () => {
     const totalSize =
       ammState.totalLongPositionSize - ammState.totalShortPositionSize;
     expect(totalSize).toBe(814882n);
-    expect(ammState.totalLongPositionSize).toBe(814882n); // 271546n
+    expect(ammState.totalLongPositionSize).toBe(814882n);
     expect(ammState.totalShortPositionSize).toBe(0n);
   });
 });

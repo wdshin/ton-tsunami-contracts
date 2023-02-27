@@ -3,11 +3,13 @@
 #include "./constants.fc";
 #include "./storage.fc";
 
+;; int muldivr(int x, inty, int z) asm "MULDIVR";
+
 int divd(int _x, int _y) inline {
-  return muldiv(_x, DECIMAL_UNIT, _y);
+  return muldivr(_x, DECIMAL_UNIT, _y);
 }
 int muld(int _x, int _y) inline {
-  return muldiv(_x, _y, DECIMAL_UNIT);
+  return muldivr(_x, _y, DECIMAL_UNIT);
 }
 
 
