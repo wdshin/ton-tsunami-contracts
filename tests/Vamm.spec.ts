@@ -1,6 +1,10 @@
 import '@ton-community/test-utils';
 import { compile } from '@ton-community/blueprint';
-import { Blockchain } from '@ton-community/sandbox';
+import {
+  Blockchain,
+  OpenedContract,
+  TreasuryContract,
+} from '@ton-community/sandbox';
 import { Cell, toNano } from 'ton-core';
 
 import { IncreasePositionBody, Vamm } from '../wrappers/Vamm';
@@ -11,32 +15,41 @@ import {
 } from '../wrappers/TraderPositionWallet';
 import { toStablecoin } from '../utils';
 
+const Direction = {
+  long: 1,
+  short: 2,
+};
+
 describe('Vamm', () => {
-  let code: Cell;
+  let blockchain: Blockchain;
+  let vamm: OpenedContract<Vamm>;
+  let longer: OpenedContract<TreasuryContract>;
+  let longerPosition: OpenedContract<TreasuryContract>;
+  let lastPosition: PositionData;
 
   beforeAll(async () => {
-    code = await compile('Vamm');
-  });
-
-  it('should increase position', async () => {
-    const blockchain = await Blockchain.create();
+    blockchain = await Blockchain.create();
     blockchain.verbosity = 'vm_logs';
 
-    const vamm = blockchain.openContract(
-      Vamm.createFromConfig(initVammData, code)
+    longer = await blockchain.treasury('longer');
+    longerPosition = await blockchain.treasury('longerPosition');
+    vamm = blockchain.openContract(
+      Vamm.createFromConfig(
+        initVammData({ liquidity: 100_000, price: 55 }),
+        await compile('Vamm')
+      )
     );
 
     const deployer = await blockchain.treasury('deployer');
-
     await deployer.send({
       init: vamm.init!,
       value: toNano('0.5'),
       to: vamm.address,
       bounce: false,
     });
+  });
 
-    const trader = await blockchain.treasury('trader');
-
+  it('Can open position', async () => {
     const oldPosition: PositionData = {
       size: 0n,
       margin: 0n,
@@ -46,35 +59,97 @@ describe('Vamm', () => {
       lastUpdatedTimestamp: 0n,
     };
     const increasePositionBody: IncreasePositionBody = {
-      direction: 1,
-      leverage: toStablecoin(2),
-      minBaseAssetAmount: toStablecoin(10),
-      traderAddress: trader.address,
+      direction: Direction.long,
+      leverage: toStablecoin(3),
+      minBaseAssetAmount: toStablecoin(0.15),
+      traderAddress: longer.address,
     };
 
-    const increaser = await blockchain.treasury('increaser');
-
-    const increaseResult = await increaser.send({
+    const increaseResult = await longerPosition.send({
       to: vamm.address,
       value: toNano('0.5'),
       body: Vamm.increasePosition({
-        amount: toStablecoin(200),
+        amount: toStablecoin(10),
         oldPosition,
+        increasePositionBody,
+      }),
+    });
+    expect(increaseResult.transactions).toHaveTransaction({
+      from: vamm.address,
+      to: longerPosition.address,
+    });
+
+    const lastTx = increaseResult.events.at(-1);
+    expect(lastTx?.type).toBe('message_sent');
+
+    if (lastTx?.type !== 'message_sent') throw new Error('nope');
+
+    const newPosition = unpackPositionData(
+      lastTx.body
+        .beginParse()
+        .skip(32 + 64)
+        .preloadRef()
+    );
+
+    expect(newPosition.size).toBe(543336n);
+    expect(newPosition.margin).toBe(9964129n);
+    expect(newPosition.openNotional).toBe(29892387n);
+    lastPosition = newPosition;
+
+    const { ammState } = await vamm.getAmmData();
+
+    const totalSize =
+      ammState.totalLongPositionSize - ammState.totalShortPositionSize;
+    expect(totalSize).toBe(543336n);
+    expect(ammState.totalLongPositionSize).toBe(543336n);
+    expect(ammState.totalShortPositionSize).toBe(0n);
+  });
+
+  it('Can increase position', async function () {
+    const increasePositionBody: IncreasePositionBody = {
+      direction: Direction.long,
+      leverage: toStablecoin(5),
+      minBaseAssetAmount: toStablecoin(0.15),
+      traderAddress: longer.address,
+    };
+    const increaseResult = await longerPosition.send({
+      to: vamm.address,
+      value: toNano('0.5'),
+      body: Vamm.increasePosition({
+        amount: toStablecoin(10),
+        oldPosition: lastPosition,
         increasePositionBody,
       }),
     });
 
     expect(increaseResult.transactions).toHaveTransaction({
       from: vamm.address,
-      to: increaser.address,
+      to: longerPosition.address,
     });
 
     const lastTx = increaseResult.events.at(-1);
+    expect(lastTx?.type).toBe('message_sent');
 
-    if (lastTx?.type === 'message_sent') {
-      const newPosition = unpackPositionData(lastTx.body);
-      console.log({ oldPosition });
-      console.log({ newPosition });
-    }
+    if (lastTx?.type !== 'message_sent') throw new Error('nope');
+
+    const newPosition = unpackPositionData(
+      lastTx.body
+        .beginParse()
+        .skip(32 + 64)
+        .preloadRef()
+    );
+
+    expect(newPosition.size).toBe(814882);
+    expect(newPosition.margin).toBe(14946194);
+    expect(newPosition.openNotional).toBe(44838582);
+    lastPosition = newPosition;
+
+    const { ammState } = await vamm.getAmmData();
+
+    const totalSize =
+      ammState.totalLongPositionSize - ammState.totalShortPositionSize;
+    expect(totalSize).toBe(814882);
+    expect(ammState.totalLongPositionSize).toBe(814882);
+    expect(ammState.totalShortPositionSize).toBe(0n);
   });
 });

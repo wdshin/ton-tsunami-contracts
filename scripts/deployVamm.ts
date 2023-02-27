@@ -4,7 +4,10 @@ import { compile, NetworkProvider } from '@ton-community/blueprint';
 import { initVammData } from '../wrappers/Vamm/Vamm.data';
 
 export async function run(provider: NetworkProvider) {
-  const vamm = Vamm.createFromConfig(initVammData, await compile('Vamm'));
+  const vamm = Vamm.createFromConfig(
+    initVammData({ liquidity: 1_000_000, price: 2.36 }),
+    await compile('Vamm')
+  );
 
   await provider.deploy(vamm, toNano('0.05'));
 
