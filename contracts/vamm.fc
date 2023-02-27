@@ -82,11 +82,17 @@
         int min_base_asset_amount = payload_s~load_uint(128);
         slice trader_addr = payload_s~load_msg_addr();
 
+
+
         ;; Check...
         ;; TODO: check asset on router
         if ((direction != direction::long) & (direction != direction::short) 
         | ~ requireMoreMarginRatio(divd(DECIMAL_UNIT, leverage), db::initMarginRatio, true)
         ) {
+            ~dump(db::totalLongPositionSize); ;; 
+            ~dump(leverage); ;; 5000000
+            ~dump(db::initMarginRatio); ;; 300000
+            ~dump(divd(DECIMAL_UNIT, leverage)); ;; 200000
             ~dump(401);
             ;; TODO: cant throw, revert amount back 
             return ();
@@ -125,8 +131,8 @@
         ;; throw("Limit error: " + abs(amountBaseAssetBought).toString() + " < " + _minBaseAssetAmount.toString())
 
         int newPositionSize = old_position_size + amountBaseAssetBought;
-        int totalLongOpenInterestAfter = db::openInterestLong + newPositionSize > 0 ? openNotional : 0;
-        int totalShortOpenInterestAfter = db::openInterestShort + newPositionSize < 0 ? openNotional : 0;
+        int totalLongOpenInterestAfter = db::openInterestLong + (newPositionSize > 0 ? openNotional : 0);
+        int totalShortOpenInterestAfter = db::openInterestShort + (newPositionSize < 0 ? openNotional : 0);
 
         var (int remainMargin, int x1, int x2, int rolloverFee) = calcRemainMarginWithFundingPaymentAndRolloverFee(
             old_position_size, 
@@ -139,8 +145,13 @@
         int newPositionMargin = remainMargin;
         int newPositionOpenNotional = old_position_open_notional + openNotional;
 
-        int newTotalLongPositionSize = (db::totalLongPositionSize + newPositionSize) > 0 ? abs(amountBaseAssetBought) : 0;
-        int newTotalShortPositionSize = (db::totalShortPositionSize + newPositionSize) < 0 ? abs(amountBaseAssetBought) : 0;
+        ~dump(789);
+        ~dump(newPositionSize);
+        ~dump(old_position_size);
+        ~dump(amountBaseAssetBought);
+
+        int newTotalLongPositionSize = db::totalLongPositionSize + (newPositionSize > 0 ? abs(amountBaseAssetBought) : 0);
+        int newTotalShortPositionSize = db::totalShortPositionSize + (newPositionSize < 0 ? abs(amountBaseAssetBought) : 0);
 
         db::totalLongPositionSize = newTotalLongPositionSize;
         db::totalShortPositionSize = newTotalShortPositionSize;

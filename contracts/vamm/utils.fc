@@ -427,7 +427,7 @@ _ internalClosePosition(
    
     int remainOpenNotional = oldPositionSize > 0 ? 
       (oldPositionNotional - exchangedQuoteAssetAmount - unrealizedPnlAfter) 
-      : unrealizedPnlAfter + oldPositionNotional - exchangedQuoteAssetAmount;
+      : (unrealizedPnlAfter + oldPositionNotional - exchangedQuoteAssetAmount);
 
     ;; exchangedPositionSize is always in different sign then oldPositionSize so always reduces position
     int newPositionSize = oldPositionSize + exchangedPositionSize;
@@ -447,8 +447,8 @@ _ internalClosePosition(
     ;; should keep EXACTLY the margin ration it is currently on.
     int marginRatio = getMarginRatioByOption(oldPositionSize, oldPositionMargin, oldPositionOpenNotional, oldPositionLastUpdatedCPF, oldPositionTimestamp, PNL_OPTION_SPOT);
     int newPositionMarginWithSameRatio = oldPositionSize > 0 ?
-      muld(newPositionOpenNotional + unrealizedPnlAfter, marginRatio) - unrealizedPnlAfter
-      : muld(newPositionOpenNotional - unrealizedPnlAfter, marginRatio) - unrealizedPnlAfter;
+      (muld(newPositionOpenNotional + unrealizedPnlAfter, marginRatio) - unrealizedPnlAfter)
+      : (muld(newPositionOpenNotional - unrealizedPnlAfter, marginRatio) - unrealizedPnlAfter);
     
     ;; This is how much margin we can return back to the trader, while position is closed while keeping MR the same
    
@@ -466,7 +466,7 @@ _ internalClosePosition(
     ;; If user opted for adding free margin back to position margin he can increase position MR.
     ;; This is basically realized profit / loss and use it to increase MR of a current position.
     ;; Used in partial liquidations as well.
-    int newPositionMargin = _addToMargin ? newPositionMarginWithSameRatio + marginToTrader : newPositionMarginWithSameRatio;
+    int newPositionMargin = _addToMargin ? (newPositionMarginWithSameRatio + marginToTrader) : newPositionMarginWithSameRatio;
     
     ;; Finally check slippage tolerance settings. It will always be 0 for liquidation.
   ;;   if (_minQuoteAssetAmount != 0 && exchangedQuoteAssetAmount < _minQuoteAssetAmount) then {
@@ -507,10 +507,10 @@ _ internalClosePosition(
         baseAssetReserveAfter,
         ;; totalPositionSizeAfter,
         ;; openInterestNotional() - openNotionalDelta,
-        db::totalLongPositionSize - (isLongPosition) ? abs(exchangedPositionSize) : 0,
-        db::totalShortPositionSize - (~ isLongPosition) ? abs(exchangedPositionSize) : 0,
-        db::openInterestLong - (isLongPosition) ? openNotionalDelta : 0,
-        db::openInterestShort - (~ isLongPosition) ? openNotionalDelta : 0,
+        db::totalLongPositionSize - (isLongPosition ? abs(exchangedPositionSize) : 0),
+        db::totalShortPositionSize - (~ isLongPosition ? abs(exchangedPositionSize) : 0),
+        db::openInterestLong - (isLongPosition ? openNotionalDelta : 0),
+        db::openInterestShort - (~ isLongPosition ? openNotionalDelta : 0),
         realizedFee,
         exchangedQuoteAssetAmount
   );
