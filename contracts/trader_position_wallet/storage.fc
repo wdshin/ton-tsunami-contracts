@@ -6,21 +6,21 @@
 ;; global int margin;                                     ;; Trader position margin (quote asset) - how much quote asset is supporting the position
 ;; global int open_notional;                              ;; Trader position open notional - how much quote asset they have borrowed
 ;; global int last_updated_cumulative_premium_fraction;   ;; Trader position last updated cumulative premium fraction
-;; global int sequence;                                   ;; When position was closed
 ;; global int fee;                                        ;; Fee for current position
 ;; global int last_updated_timestamp;                     ;; Trader position last updated timestamp
 
 (slice, slice, int, cell) load_data() impure {
   slice ds = get_data().begin_parse();
 
-  return (ds~load_msg_addr(), ;; trader_addr
+  return (
+    ds~load_msg_addr(),       ;; trader_addr
     ds~load_msg_addr(),       ;; vamm_addr
     ds~load_uint(1),          ;; is_busy
     ds.preload_ref()          ;; position_ref
   );
 }
 
-() save_data(trader_addr slice, vamm_addr slice, is_busy int, position_ref cell) impure {
+() save_data(slice trader_addr, slice vamm_addr, int is_busy, cell position_ref) impure {
   set_data(
     begin_cell()
             .store_slice(trader_addr)

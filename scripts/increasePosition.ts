@@ -7,7 +7,7 @@ import { PositionData } from '../wrappers/TraderPositionWallet';
 
 export async function run() {
   const address = Address.parse(
-    'EQAh5d2zhmsQkg_h1Esffev8l_-pHOaN08RmtzmRbABiTM-Y'
+    'EQB4IIpbFFCcwOtMeFZ6cYHgJgWFnKheskUpZ5yD3mUFXmZ_'
   );
 
   const oldPosition: PositionData = {
