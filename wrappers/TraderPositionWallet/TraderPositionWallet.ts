@@ -43,8 +43,11 @@ export function traderPositionWalletConfigToCell(
   config: TraderPositionWalletConfig
 ): Cell {
   return beginCell()
-    .storeUint(config.id, 32)
-    .storeUint(config.counter, 32)
+    .storeAddress(config.traderAddress)
+    .storeAddress(config.vammAddress)
+    .storeAddress(config.routerAddress)
+    .storeUint(config.isBusy, 1)
+    .storeRef(packPositionData(config.positionData))
     .endCell();
 }
 
@@ -68,41 +71,44 @@ export class TraderPositionWallet implements Contract {
     return new TraderPositionWallet(contractAddress(workchain, init), init);
   }
 
-  async sendDeploy(provider: ContractProvider, via: Sender, value: bigint) {
-    await provider.internal(via, {
-      value,
-      sendMode: SendMode.PAY_GAS_SEPARATLY,
-      body: beginCell().endCell(),
-    });
-  }
+  // async sendDeploy(provider: ContractProvider, via: Sender, value: bigint) {
+  //   await provider.internal(via, {
+  //     value,
+  //     sendMode: SendMode.PAY_GAS_SEPARATLY,
+  //     body: beginCell().endCell(),
+  //   });
+  // }
 
-  async sendIncrease(
-    provider: ContractProvider,
-    via: Sender,
-    opts: {
-      increaseBy: number;
-      value: bigint;
-      queryID?: number;
-    }
-  ) {
-    await provider.internal(via, {
-      value: opts.value,
-      sendMode: SendMode.PAY_GAS_SEPARATLY,
-      body: beginCell()
-        .storeUint(TraderPositionWalletOpcodes.increase, 32)
-        .storeUint(opts.queryID ?? 0, 64)
-        .storeUint(opts.increaseBy, 32)
-        .endCell(),
-    });
-  }
+  // async sendIncrease(
+  //   provider: ContractProvider,
+  //   via: Sender,
+  //   opts: {
+  //     increaseBy: number;
+  //     value: bigint;
+  //     queryID?: number;
+  //   }
+  // ) {
+  //   await provider.internal(via, {
+  //     value: opts.value,
+  //     sendMode: SendMode.PAY_GAS_SEPARATLY,
+  //     body: beginCell()
+  //       .storeUint(TraderPositionWalletOpcodes.increase, 32)
+  //       .storeUint(opts.queryID ?? 0, 64)
+  //       .storeUint(opts.increaseBy, 32)
+  //       .endCell(),
+  //   });
+  // }
 
-  async getCounter(provider: ContractProvider) {
-    const result = await provider.get('get_counter', []);
-    return result.stack.readNumber();
-  }
-
-  async getID(provider: ContractProvider) {
-    const result = await provider.get('get_id', []);
-    return result.stack.readNumber();
+  async getPositionData(
+    provider: ContractProvider
+  ): Promise<TraderPositionWalletConfig> {
+    const { stack } = await provider.get('get_position_data', []);
+    return {
+      traderAddress: stack.readAddress(),
+      vammAddress: stack.readAddress(),
+      routerAddress: stack.readAddress(),
+      isBusy: stack.readNumber(),
+      positionData: unpackPositionData(stack.readCell()),
+    };
   }
 }

@@ -2,6 +2,7 @@
 
 global int db::balance;
 global int db::fee;                                       ;; Exchange fee. Default is 1%. 1/2 goes to stakers, 1/2 goes to insurance fund
+global slice db::router_addr;
 global int db::rolloverFee;                               ;; Rollover fee per minute. Default 35% per year.
 global int db::fundingPeriod;                             ;; Funding period. By default funding is paid once per hour
 global int db::initMarginRatio;                           ;; Initial margin ratio. Controls how much leverage can be applied when position is created
@@ -26,14 +27,16 @@ global int db::openInterestShort;        ;; Open Interest Notional (short)
 global int db::openInterestLong;         ;; Open Interest Notional (long)
 global int db::oraclePrice; 
 
+global cell db::trader_position_wallet_code;
 
-global slice trader_address;                                    ;; Trader address
 
 _ load_raw_data() impure inline {
   slice ds = get_data().begin_parse();
   return (
     ds~load_coins(),
     ds~load_uint(128),
+    ds~load_msg_addr(),
+    ds~load_ref(),
     ds~load_ref(),
     ds.preload_ref()
   );
@@ -43,6 +46,7 @@ _ load_raw_data() impure inline {
   slice ds = get_data().begin_parse();
   db::balance = ds~load_coins();
   db::oraclePrice = ds~load_uint(128);
+  db::router_addr = ds~load_msg_addr();
 
   var (
     db::fee,
@@ -68,7 +72,8 @@ _ load_raw_data() impure inline {
     db::totalShortPositionSize,
     db::openInterestShort,
     db::openInterestLong
-  ) = unpack_amm_state(ds.preload_ref().begin_parse());
+  ) = unpack_amm_state(ds~load_ref().begin_parse());
+  db::trader_position_wallet_code = ds.preload_ref();
 
   db::totalPositionSize = db::totalLongPositionSize - db::totalShortPositionSize;
 
@@ -80,6 +85,7 @@ _ load_raw_data() impure inline {
     begin_cell()
       .store_coins(db::balance)
       .store_uint(db::oraclePrice, 128)
+      .store_slice(db::router_addr)
       .store_ref(pack_exchange_settings(
         db::fee,
         db::rolloverFee,
@@ -104,6 +110,7 @@ _ load_raw_data() impure inline {
         db::openInterestShort,
         db::openInterestLong
       ))
+      .store_ref(db::trader_position_wallet_code)
       .end_cell()
   );
 }

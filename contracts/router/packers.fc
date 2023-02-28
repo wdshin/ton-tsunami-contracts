@@ -1,0 +1,47 @@
+#include "../trader_position_wallet/packers.fc";
+#include "../vamm/packers.fc";
+
+cell pack_vamm_data(slice router_addr, cell trader_position_wallet_code) inline_ref {
+  return begin_cell()
+      .store_coins(0) ;; balance
+      .store_uint(0, 128) ;; oraclePrice
+      .store_slice(router_addr)
+      .store_ref(
+    pack_exchange_settings(
+      1200, ;; fee 0.0012 * 1000000
+      1, ;; rolloverFee 0.000001 * 1000000
+      3600, ;; fundingPeriod
+      300000, ;; initMarginRatio 0.3 * 1000000
+      85000, ;; maintenanceMarginRatio 0.085 * 100000
+      10000, ;; liquidationFeeRatio 0.01 * 100000
+      150000, ;; partialLiquidationRatio 0.15 * 100000
+      100000, ;; spreadLimit 0.1 * 100000
+      80000, ;; maxPriceImpact 0.08 * 100000
+      400000, ;; maxPriceSpread 0.4 * 100000
+      100000000000000, ;; maxOpenNotional 100_000_000 * 100000
+      500000, ;; feeToStakersPercent 0.5 * 100000
+      1 ;; 1
+    ))
+      .store_ref(
+    pack_amm_state(
+      0, ;; quoteAssetReserve
+      0, ;; baseAssetReserve
+      100000, ;; quoteAssetWeight 1 * 100000
+      0, ;; totalLongPositionSize
+      0, ;; totalShortPositionSize
+      0, ;; openInterestShort
+      0 ;; openInterestLong
+    ))
+      .store_ref(ctx::trader_position_wallet_code)
+      .end_cell();
+}
+
+cell pack_init_position_data(slice vamm_addr, slice trader_addr, slice router_addr) inline {
+  return begin_cell()
+    .store_slice(trader_addr)
+    .store_slice(vamm_addr)
+    .store_slice(router_addr)
+    .store_uint(0, 1) ;; is_busy
+    .store_ref(pack_position_data(0,0,0,0,0,0)) ;; size margin open_notional last_updated_cumulative_premium fee last_updated_timestamp
+    .end_cell();
+}

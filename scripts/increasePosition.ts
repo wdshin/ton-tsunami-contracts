@@ -1,47 +1,59 @@
-import { Address, toNano } from 'ton';
-import QRCode from 'qrcode';
-import { Vamm } from '../wrappers/Vamm/Vamm';
-import { tonDeepLink, toStablecoin } from '../utils';
-import { IncreasePositionBody } from '../wrappers/Vamm';
-import { PositionData } from '../wrappers/TraderPositionWallet';
+import { Address, toNano } from 'ton-core';
+import { Router } from '../wrappers/Router/Router';
+import { NetworkProvider } from '@ton-community/blueprint';
+import { addressToCell, sleep, toStablecoin } from '../utils';
+import { JettonWallet } from '../wrappers/JettonWallet/JettonWallet';
 
-export async function run() {
-  const address = Address.parse(
-    'EQB4IIpbFFCcwOtMeFZ6cYHgJgWFnKheskUpZ5yD3mUFXmZ_'
-  );
+const usdcAddr = Address.parse('kQBaYzBs3DaCEFtaE8fwQat_74IPBaLRQOTgZgPTPOVUDsFb');
 
-  const oldPosition: PositionData = {
-    size: 0n,
-    margin: 0n,
-    openNotional: 0n,
-    lastUpdatedCumulativePremium: 0n,
-    fee: 0n,
-    lastUpdatedTimestamp: 0n,
-  };
-  const increasePositionBody: IncreasePositionBody = {
-    direction: 1,
-    leverage: toStablecoin(2),
-    minBaseAssetAmount: toStablecoin(10),
-    traderAddress: Address.parse(
-      'EQAdeaoRSNRoV7ABKgr-gx70pSG6XTTPyITnGLTUZNevSYCO'
-    ),
-  };
+const Direction = {
+  long: 1,
+  short: 2,
+};
 
-  const increaseBody = Vamm.increasePosition({
-    oldPosition,
-    increasePositionBody,
-    amount: toStablecoin(200),
+export async function run(provider: NetworkProvider) {
+  const routerAddress = Address.parse('EQA8NWa1OkW9wihgFW9vKEI17lrRXp13TMMNLyUFzKnVTx32');
+
+  // const routerJWAddress = (
+  //   await provider
+  //     .api()
+  //     .callGetMethod(usdcAddr, 'get_wallet_address', [
+  //       { type: 'slice', cell: addressToCell(provider.sender().address!) },
+  //     ])
+  // ).stack.readAddress();
+  // const router = new Router(routerAddress);
+  // const openedRouter = provider.open(router);
+  // await openedRouter.sendSetWhitelistedAddress(provider.sender(), {
+  //   value: toNano('0.05'),
+  //   address: routerJWAddress,
+  // });
+
+  await sleep(1500);
+
+  const deployerJWAddress = (
+    await provider
+      .api()
+      .callGetMethod(usdcAddr, 'get_wallet_address', [
+        { type: 'slice', cell: addressToCell(provider.sender().address!) },
+      ])
+  ).stack.readAddress();
+  const deployerJW = JettonWallet.createFromAddress(deployerJWAddress);
+  const openedDeployerJW = provider.open(deployerJW);
+
+  const forwardPayload = Router.increasePosition({
+    body: {
+      direction: Direction.long,
+      leverage: toStablecoin(3),
+      minBaseAssetAmount: toStablecoin(0.15),
+      traderAddress: provider.sender().address!,
+      amount: toStablecoin(10),
+    },
   });
-  const increaseAmount = toNano('0.1');
 
-  const increaseLink = tonDeepLink({
-    address,
-    amount: increaseAmount,
-    body: increaseBody,
+  await openedDeployerJW.sendTransfer(provider.sender(), toNano('0.3'), {
+    amount: toStablecoin(10),
+    destination: routerAddress,
+    forwardAmount: toNano('0.2'),
+    forwardPayload,
   });
-
-  console.log(increaseLink);
-  console.log(
-    await QRCode.toString(increaseLink, { type: 'terminal', small: true })
-  );
 }

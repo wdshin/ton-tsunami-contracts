@@ -35,6 +35,7 @@ export type AmmState = {
 export type VammConfig = {
   balance: bigint;
   oraclePrice: bigint;
+  routerAddr: Address;
   exchangeSettings: ExchangeSettings;
   ammState: AmmState;
 };
@@ -43,5 +44,6 @@ export type IncreasePositionBody = {
   direction: number;
   leverage: bigint;
   minBaseAssetAmount: bigint;
+  amount: bigint;
   traderAddress: Address;
 };

@@ -1,4 +1,5 @@
-import { Address, Cell } from 'ton';
+import { Address, beginCell, Cell } from 'ton';
+export * from './crc32';
 
 const stablecoinDecimals: number = 10 ** 6;
 
@@ -25,3 +26,9 @@ export const tonDeepLink = ({
   })}?amount=${amount.toString(10)}${
     body ? '&bin=' + body.toBoc().toString('base64url') : ''
   }${stateInit ? '&init=' + stateInit.toBoc().toString('base64url') : ''}`;
+
+export function addressToCell(addr: Address): Cell {
+  return beginCell().storeAddress(addr).endCell();
+}
+
+export const sleep = (ms: number) => new Promise((res) => setTimeout(res, ms));

@@ -5,9 +5,6 @@ import {
   Contract,
   contractAddress,
   ContractProvider,
-  Sender,
-  SendMode,
-  toNano,
 } from 'ton';
 import { packPositionData, PositionData } from '../TraderPositionWallet';
 
@@ -89,9 +86,9 @@ export function vammConfigToCell(config: VammConfig): Cell {
     .storeRef(packAmmState(config.ammState))
     .endCell();
 }
-
 export function packIncreasePositionBody(body: IncreasePositionBody): Cell {
   return beginCell()
+    .storeCoins(body.amount)
     .storeUint(body.direction, 2)
     .storeUint(body.leverage, 32)
     .storeUint(body.minBaseAssetAmount, 128)
@@ -115,51 +112,49 @@ export class Vamm implements Contract {
     return new Vamm(contractAddress(workchain, init), init);
   }
 
-  async sendDeploy(provider: ContractProvider, via: Sender, value: bigint) {
-    await provider.internal(via, {
-      value,
-      sendMode: SendMode.PAY_GAS_SEPARATLY,
-      body: beginCell().endCell(),
-    });
-  }
-
   static increasePosition(opts: {
     queryID?: number;
     oldPosition: PositionData;
     increasePositionBody: IncreasePositionBody;
-    amount: bigint;
   }) {
     return beginCell()
       .storeUint(VammOpcodes.increasePosition, 32)
       .storeUint(opts.queryID ?? 0, 64)
-      .storeCoins(opts.amount)
+      .storeSlice(packIncreasePositionBody(opts.increasePositionBody).asSlice())
       .storeRef(packPositionData(opts.oldPosition))
-      .storeRef(packIncreasePositionBody(opts.increasePositionBody))
       .endCell();
   }
 
-  async sendIncreasePosition(
-    provider: ContractProvider,
-    via: Sender,
-    opts: {
-      value: bigint;
-      queryID?: number;
-      position: Cell;
-      increasePayload: Cell;
-    }
-  ) {
-    await provider.internal(via, {
-      value: opts.value,
-      sendMode: SendMode.PAY_GAS_SEPARATLY,
-      body: beginCell()
-        .storeUint(VammOpcodes.increasePosition, 32)
-        .storeUint(opts.queryID ?? 0, 64)
-        .storeCoins(toNano(100))
-        .storeRef(opts.position)
-        .storeRef(opts.increasePayload)
-        .endCell(),
-    });
-  }
+  // async sendDeploy(provider: ContractProvider, via: Sender, value: bigint) {
+  //   await provider.internal(via, {
+  //     value,
+  //     sendMode: SendMode.PAY_GAS_SEPARATLY,
+  //     body: beginCell().endCell(),
+  //   });
+  // }
+
+  // async sendIncreasePosition(
+  //   provider: ContractProvider,
+  //   via: Sender,
+  //   opts: {
+  //     value: bigint;
+  //     queryID?: number;
+  //     position: Cell;
+  //     increasePayload: Cell;
+  //   }
+  // ) {
+  //   await provider.internal(via, {
+  //     value: opts.value,
+  //     sendMode: SendMode.PAY_GAS_SEPARATLY,
+  //     body: beginCell()
+  //       .storeUint(VammOpcodes.increasePosition, 32)
+  //       .storeUint(opts.queryID ?? 0, 64)
+  //       .storeCoins(toNano(100))
+  //       .storeRef(opts.position)
+  //       .storeRef(opts.increasePayload)
+  //       .endCell(),
+  //   });
+  // }
 
   async getAmmData(provider: ContractProvider): Promise<VammConfig> {
     const { stack } = await provider.get('get_amm_data', []);
@@ -167,6 +162,7 @@ export class Vamm implements Contract {
     return {
       balance: stack.readBigNumber(),
       oraclePrice: stack.readBigNumber(),
+      routerAddr: stack.readAddress(),
       exchangeSettings: unpackExchangeSettings(stack.readCell()),
       ammState: unpackAmmState(stack.readCell()),
     };

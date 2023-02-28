@@ -1,3 +1,5 @@
+import { Address } from 'ton-core';
+
 export type PositionData = {
   size: bigint;
   margin: bigint;
@@ -8,8 +10,11 @@ export type PositionData = {
 };
 
 export type TraderPositionWalletConfig = {
-  id: number;
-  counter: number;
+  traderAddress: Address;
+  vammAddress: Address;
+  routerAddress: Address;
+  isBusy: number;
+  positionData: PositionData;
 };
 
 export const TraderPositionWalletOpcodes = {

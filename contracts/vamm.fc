@@ -27,20 +27,13 @@
     int op = in_msg_body~load_uint(32);
     int query_id = in_msg_body~load_uint(64);
 
-    ;; Temporarily without oracle
-    ;; if (op == op::oracle_response) {
-    ;;     ;; TODO: check if sender is oracle...
-    ;; }
-
     if (op == op::temp_set_price) {
-        int new_price = in_msg_body~load_uint(128);
-
         load_data();
-        int _qtAstR = db::quoteAssetReserve;
-        int _bsAstR = db::baseAssetReserve;
+
+        int new_price = in_msg_body~load_uint(128);
         var (
             int newQuoteAssetWeight
-        ) = getSyncTerminalPrice(new_price, db::quoteAssetReserve, _bsAstR);
+        ) = getSyncTerminalPrice(new_price, db::quoteAssetReserve, db::baseAssetReserve);
 
         db::quoteAssetWeight = newQuoteAssetWeight;
         db::oraclePrice = new_price;
@@ -49,50 +42,30 @@
         return ();
     }
 
-    ;; if (op == op::transfer_notification()) {
-    ;;     ;; check if msg from exact TW
-    ;;     ;; let if ok...
-
-    ;;     int query_id = in_msg_body~load_uint(64);
-    ;;     int jetton_amount = in_msg_body~load_coins();
-    ;;     slice from_address = in_msg_body~load_msg_addr();
-    ;;     slice req_payload = in_msg_body.preload_ref().begin_parse();
-
-    ;;     int transfer_op = req_payload~load_uint(32);
-
-    ;;     if (transfer_op == op::increase_position) {
-    ;;         cell position_state_init = calculate_position_wallet_state_init(from_address, jetton_master_address, jetton_wallet_code)
-    ;;         slice position_addr = calculate_jetton_wallet_address(position_state_init);
-    ;;         return ();
-    ;;     }        
-
-    ;;     return ();
-    ;; }
-
+    if (op == op::temp_set_amm_data) {
+        load_data();
+        var (db::balance, db::oraclePrice, db::quoteAssetReserve, db::baseAssetReserve) = (in_msg_body~load_coins(), in_msg_body~load_uint(128), in_msg_body~load_uint(128), in_msg_body~load_uint(128));
+        save_data();
+        return ();
+    }
 
     if (op == op::increase_position) {
         load_data();
-        slice position_s = in_msg_body~load_ref().begin_parse();
-        slice payload_s = in_msg_body.preload_ref().begin_parse();
+        slice position_s = in_msg_body.preload_ref().begin_parse();
+        slice payload_s = in_msg_body;
 
         ;; TODO: msg layout
-        int raw_amount = in_msg_body~load_coins();
+        int raw_amount = payload_s~load_coins();
         int direction = payload_s~load_uint(2);
         int leverage = payload_s~load_uint(32);
         int min_base_asset_amount = payload_s~load_uint(128);
         slice trader_addr = payload_s~load_msg_addr();
-
-
 
         ;; Check...
         ;; TODO: check asset on router
         if ((direction != direction::long) & (direction != direction::short) 
         | ~ requireMoreMarginRatio(divd(DECIMAL_UNIT, leverage), db::initMarginRatio, true)
         ) {
-            ~dump(db::totalLongPositionSize); ;; 
-            ~dump(leverage); ;; 5000000
-            ~dump(db::initMarginRatio); ;; 300000
-            ~dump(divd(DECIMAL_UNIT, leverage)); ;; 200000
             ~dump(401);
             ;; TODO: cant throw, revert amount back 
             return ();
@@ -145,11 +118,6 @@
         int newPositionMargin = remainMargin;
         int newPositionOpenNotional = old_position_open_notional + openNotional;
 
-        ~dump(789);
-        ~dump(newPositionSize);
-        ~dump(old_position_size);
-        ~dump(amountBaseAssetBought);
-
         int newTotalLongPositionSize = db::totalLongPositionSize + (newPositionSize > 0 ? abs(amountBaseAssetBought) : 0);
         int newTotalShortPositionSize = db::totalShortPositionSize + (newPositionSize < 0 ? abs(amountBaseAssetBought) : 0);
 
@@ -158,17 +126,22 @@
         db::openInterestLong = totalLongOpenInterestAfter;
         db::openInterestShort = totalShortOpenInterestAfter;
 
-        db::quoteAssetReserve =  quoteAssetReserveAfter;
-        db::baseAssetReserve =  baseAssetReserveAfter;
+        db::quoteAssetReserve = quoteAssetReserveAfter;
+        db::baseAssetReserve = baseAssetReserveAfter;
         db::balance += _amount;
 
         cell new_position_ref = pack_position_data(newPositionSize, newPositionMargin, newPositionOpenNotional, 0, old_position_fee, now());
+
+
+        ;; quoteAstR, baseAstR, quoteAstW
+        ;; send message to update and unlock trader position;
         var new_position_body = begin_cell()
             .store_uint(op::update_position, 32)
-            .store_uint(query_id, 64)
+            .store_uint(db::quoteAssetReserve, 128)
+            .store_uint(db::quoteAssetWeight, 128)
+            .store_uint(db::baseAssetReserve, 128)
             .store_ref(new_position_ref);
 
-        ;; send message to update and unlock trader position;
         send_simple_message(0, sender_addr, new_position_body, mode::carry_remaining_gas);
 
         ;; TODO: other messages: Vault, excesses, etc.
@@ -183,8 +156,8 @@
         ;; _size: Int, _minQuoteAssetAmount: Int, _addToMargin: Boolean
 
         ;; TODO: message layout
-        slice position_s = in_msg_body~load_ref().begin_parse();
-        slice payload_s = in_msg_body.preload_ref().begin_parse();
+        slice position_s = in_msg_body.preload_ref().begin_parse();
+        slice payload_s = in_msg_body;
 
         slice _traderAddress = payload_s~load_msg_addr();
         int _size = payload_s~load_uint(128);

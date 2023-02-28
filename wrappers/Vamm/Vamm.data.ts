@@ -1,3 +1,4 @@
+import { Address } from 'ton-core';
 import { toStablecoin } from '../../utils';
 import { VammConfig } from './Vamm.types';
 
@@ -15,6 +16,9 @@ export const initVammData = ({
   return {
     balance: opts?.balance ?? 0n,
     oraclePrice: toStablecoin(price),
+    routerAddr:
+      opts?.routerAddr ??
+      Address.parse('EQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAM9c'),
     exchangeSettings: {
       fee: opts?.exchangeSettings?.fee ?? toStablecoin(0.0012),
       rolloverFee:
@@ -40,8 +44,10 @@ export const initVammData = ({
       maxOracleDelay: opts?.exchangeSettings?.maxOracleDelay ?? 1n, // 1
     },
     ammState: {
-      quoteAssetReserve: toStablecoin(liquidity), // 1M !
-      baseAssetReserve: toStablecoin(liquidity / price), // 1M / tonPrice (!)
+      quoteAssetReserve:
+        opts?.ammState?.quoteAssetReserve ?? toStablecoin(liquidity), // 1M !
+      baseAssetReserve:
+        opts?.ammState?.baseAssetReserve ?? toStablecoin(liquidity / price), // 1M / tonPrice (!)
       quoteAssetWeight: opts?.ammState?.quoteAssetWeight ?? toStablecoin(1), // 1  !
       totalLongPositionSize: opts?.ammState?.totalLongPositionSize ?? 0n,
       totalShortPositionSize: opts?.ammState?.totalShortPositionSize ?? 0n,

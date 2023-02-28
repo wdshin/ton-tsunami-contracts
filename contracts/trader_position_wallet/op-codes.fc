@@ -1,3 +1,0 @@
-const op::start_increase_position = "op::start_increase_position"c;
-const op::start_increase_position_response = "op::start_increase_position_response"c;
-const op::update_position = "op::update_position"c;

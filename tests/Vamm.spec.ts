@@ -63,13 +63,13 @@ describe('Vamm', () => {
       leverage: toStablecoin(3),
       minBaseAssetAmount: toStablecoin(0.15),
       traderAddress: longer.address,
+      amount: toStablecoin(10),
     };
 
     const increaseResult = await longerPosition.send({
       to: vamm.address,
       value: toNano('0.5'),
       body: Vamm.increasePosition({
-        amount: toStablecoin(10),
         oldPosition,
         increasePositionBody,
       }),
@@ -111,12 +111,12 @@ describe('Vamm', () => {
       leverage: toStablecoin(3),
       minBaseAssetAmount: toStablecoin(0.15),
       traderAddress: longer.address,
+      amount: toStablecoin(5),
     };
     const increaseResult = await longerPosition.send({
       to: vamm.address,
       value: toNano('0.5'),
       body: Vamm.increasePosition({
-        amount: toStablecoin(5),
         oldPosition: lastPosition,
         increasePositionBody,
       }),

@@ -1,6 +1,13 @@
 #pragma version >=0.4.1;
 
 #include "shared/stdlib.fc";
+#include "shared/messages.fc";
+#include "shared/jetton-op-codes.fc";
+
+#include "router/storage.fc";
+#include "router/errors.fc";
+#include "router/op-codes.fc";
+#include "router/utils.fc";
 
 ;; recv_internal is the main function of the contract and is called when it receives a message
 () recv_internal(int my_balance, int msg_value, cell in_msg_full, slice in_msg_body) impure {
@@ -9,13 +16,9 @@
     }
 
     slice cs = in_msg_full.begin_parse();
-    int flags = cs~load_uint(4); ;; the first four bits of serialized message contain certain flags, one of which indicates whether the message is bounced
-    ;; a message is bounced when a contract receives a bounceable message and throws during its processing
-    ;; the bounced message is then returned to sender with `bounced` bit set, this is a way to handle errors in TON
+    int flags = cs~load_uint(4); 
 
-    if (flags & 1) { ;; ignore all bounced messages
-        return ();
-    }
+    throw_if(0, cs~load_uint(4) & 1); ;; ignore all bounced messages
 
     slice sender_addr = cs~load_msg_addr();
     cs~load_coins(); ;; skip value
@@ -27,12 +30,81 @@
     int query_id = in_msg_body~load_uint(64);
     
 
-    if (op == op::increase) {
-        int increase_by = in_msg_body~load_uint(32);
-        ctx_counter += increase_by; ;; increase the counter
+    if (op == op::transfer_notification) {
+        var (int jetton_amount, slice from_addr, cell payload_ref) = (in_msg_body~load_coins(), in_msg_body~load_msg_addr(), in_msg_body.preload_ref());
+
+        ;; TODO: check if sender_addr is whitelisted jetton...
+        load_data();
+        ;; throw_unless(error::invalid_jetton, equal_slices(sender_addr, ctx::whitelisted_jetton_wallet_address));
+
+        slice payload_s = payload_ref.begin_parse();
+        
+        int payload_op = payload_s~load_uint(32);
+        int payload_query_id = payload_s~load_uint(64);
+        
+        if (payload_op == op::increase_position) {
+            throw_unless(error::invalid_jetton_amount, jetton_amount == payload_s~load_coins());
+            
+            ;; TODO: add index to payload_ref to work vith different vAMMs
+
+            var (_, slice vamm_addr) = get_vamm_state_init_and_address();
+            var (cell position_state_init, slice trader_position_addr) = get_position_state_init_and_address(vamm_addr, from_addr);
+
+            send_message_with_stateinit(0, trader_position_addr, position_state_init, payload_ref, mode::carry_remaining_gas);
+            return ();
+        }
+
+        return ();
+    }
+
+    if (op == op::temp_set_amm_data) {
+        load_data();
+        ;; throw_unless(error::not_an_admin, equal_slices(sender_addr, ctx::admin_address));
+
+        var (cell state_init, slice vamm_addr) = get_vamm_state_init_and_address();
+        var body = begin_cell()
+            .store_uint(op::temp_set_amm_data, 32)
+            .store_uint(query_id, 64)
+            .store_slice(in_msg_body)
+            .end_cell();
+
+        send_message_with_stateinit(0 , vamm_addr, state_init, body, mode::carry_remaining_gas);
+        return ();
+    }
+
+    if (op == op::temp_set_whitelisted_address) {
+        load_data();
+        ;; throw_unless(error::not_an_admin, equal_slices(sender_addr, ctx::admin_address));
+
+        ctx::whitelisted_jetton_wallet_address = in_msg_body;
         save_data();
         return ();
     }
 
     throw(0xffff);
+}
+
+slice get_admin_address() method_id {
+    load_data();
+    return ctx::admin_address;
+}
+
+slice get_whitelisted_jetton_wallet_address(slice trader_addr) method_id {
+    load_data();
+    return ctx::whitelisted_jetton_wallet_address;
+}
+
+;; TODO: index -> amm
+slice get_amm_address() method_id {
+    load_data();
+    var (_, slice vamm_addr) = get_vamm_state_init_and_address();
+    return vamm_addr;
+}
+
+;; TODO: (index, trader) -> amm
+slice get_trader_position_address(slice trader_addr) method_id {
+    load_data();
+    var (_, slice vamm_addr) = get_vamm_state_init_and_address();
+    var (_, slice trader_position_addr) = get_position_state_init_and_address(vamm_addr, trader_addr);
+    return trader_position_addr;
 }

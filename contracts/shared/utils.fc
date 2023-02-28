@@ -1,0 +1,8 @@
+slice get_serialized_address(int workchain, int address_hash) inline {
+  return begin_cell()
+      .store_uint(4, 3)
+      .store_uint(workchain, 8)
+      .store_uint(address_hash, 256)
+      .end_cell()
+      .begin_parse();
+}
