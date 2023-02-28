@@ -31,7 +31,7 @@
         ctx::is_busy = 1;
 
         var body = begin_cell().store_slice(in_msg_body).store_ref(ctx::position_ref);
-        send_simple_message(0, ctx::trader_addr, body, mode::carry_remaining_gas);
+        send_simple_message(0, ctx::vamm_addr, body, mode::carry_remaining_gas);
 
         save_data();
         return ();

@@ -12,7 +12,7 @@ const Direction = {
 };
 
 export async function run(provider: NetworkProvider) {
-  const routerAddress = Address.parse('EQA8NWa1OkW9wihgFW9vKEI17lrRXp13TMMNLyUFzKnVTx32');
+  const routerAddress = Address.parse('EQAsZsZ4lxL5piHTn5gxRfOJenRxmGhy2BIjVFkltNVUd2cM');
 
   // const routerJWAddress = (
   //   await provider
