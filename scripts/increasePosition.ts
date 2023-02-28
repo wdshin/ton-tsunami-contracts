@@ -53,7 +53,7 @@ export async function run(provider: NetworkProvider) {
   await openedDeployerJW.sendTransfer(provider.sender(), toNano('0.3'), {
     amount: toStablecoin(10),
     destination: routerAddress,
-    forwardAmount: toNano('0.2'),
+    forwardAmount: toNano('0.255'),
     forwardPayload,
   });
 }
