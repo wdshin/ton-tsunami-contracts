@@ -3,32 +3,14 @@ import { Router } from '../wrappers/Router/Router';
 import { NetworkProvider } from '@ton-community/blueprint';
 import { addressToCell, sleep, toStablecoin } from '../utils';
 import { JettonWallet } from '../wrappers/JettonWallet/JettonWallet';
+import { Vamm } from '../wrappers/Vamm';
 
 const usdcAddr = Address.parse('kQBaYzBs3DaCEFtaE8fwQat_74IPBaLRQOTgZgPTPOVUDsFb');
 
-const Direction = {
-  long: 1,
-  short: 2,
-};
+const Direction = { long: 1, short: 2 };
 
 export async function run(provider: NetworkProvider) {
-  const routerAddress = Address.parse('EQAsZsZ4lxL5piHTn5gxRfOJenRxmGhy2BIjVFkltNVUd2cM');
-
-  // const routerJWAddress = (
-  //   await provider
-  //     .api()
-  //     .callGetMethod(usdcAddr, 'get_wallet_address', [
-  //       { type: 'slice', cell: addressToCell(provider.sender().address!) },
-  //     ])
-  // ).stack.readAddress();
-  // const router = new Router(routerAddress);
-  // const openedRouter = provider.open(router);
-  // await openedRouter.sendSetWhitelistedAddress(provider.sender(), {
-  //   value: toNano('0.05'),
-  //   address: routerJWAddress,
-  // });
-
-  await sleep(1500);
+  const routerAddress = Address.parse('EQD_wZqnlZHUrRb845Gg5tRUa0ssVfmpq4KgdnyhCZtdXkdZ');
 
   const deployerJWAddress = (
     await provider

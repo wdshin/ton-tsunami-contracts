@@ -82,8 +82,10 @@ export function vammConfigToCell(config: VammConfig): Cell {
   return beginCell()
     .storeCoins(config.balance)
     .storeUint(config.oraclePrice, 128)
+    .storeAddress(config.routerAddr)
     .storeRef(packExchangeSettings(config.exchangeSettings))
     .storeRef(packAmmState(config.ammState))
+    .storeRef(config.positionCode)
     .endCell();
 }
 export function packIncreasePositionBody(body: IncreasePositionBody): Cell {
@@ -97,10 +99,7 @@ export function packIncreasePositionBody(body: IncreasePositionBody): Cell {
 }
 
 export class Vamm implements Contract {
-  constructor(
-    readonly address: Address,
-    readonly init?: { code: Cell; data: Cell }
-  ) {}
+  constructor(readonly address: Address, readonly init?: { code: Cell; data: Cell }) {}
 
   static createFromAddress(address: Address) {
     return new Vamm(address);
@@ -156,7 +155,9 @@ export class Vamm implements Contract {
   //   });
   // }
 
-  async getAmmData(provider: ContractProvider): Promise<VammConfig> {
+  async getAmmData(
+    provider: ContractProvider
+  ): Promise<Omit<VammConfig, 'positionCode'>> {
     const { stack } = await provider.get('get_amm_data', []);
 
     return {
@@ -165,6 +166,7 @@ export class Vamm implements Contract {
       routerAddr: stack.readAddress(),
       exchangeSettings: unpackExchangeSettings(stack.readCell()),
       ammState: unpackAmmState(stack.readCell()),
+      // positionCode: stack.readCell(),
     };
   }
 }

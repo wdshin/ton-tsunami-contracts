@@ -1,4 +1,4 @@
-import { Address } from 'ton';
+import { Address, Cell } from 'ton';
 
 export const VammOpcodes = {
   increasePosition: 0xa55bf923,
@@ -38,6 +38,7 @@ export type VammConfig = {
   routerAddr: Address;
   exchangeSettings: ExchangeSettings;
   ammState: AmmState;
+  positionCode: Cell;
 };
 
 export type IncreasePositionBody = {

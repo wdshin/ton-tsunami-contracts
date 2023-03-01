@@ -1,18 +1,11 @@
 import '@ton-community/test-utils';
 import { compile } from '@ton-community/blueprint';
-import {
-  Blockchain,
-  OpenedContract,
-  TreasuryContract,
-} from '@ton-community/sandbox';
+import { Blockchain, OpenedContract, TreasuryContract } from '@ton-community/sandbox';
 import { toNano } from 'ton-core';
 
 import { IncreasePositionBody, Vamm } from '../wrappers/Vamm';
 import { initVammData } from '../wrappers/Vamm/Vamm.data';
-import {
-  PositionData,
-  unpackPositionData,
-} from '../wrappers/TraderPositionWallet';
+import { PositionData, unpackPositionData } from '../wrappers/TraderPositionWallet';
 import { toStablecoin } from '../utils';
 
 const Direction = {
@@ -29,7 +22,7 @@ describe('Vamm', () => {
 
   beforeAll(async () => {
     blockchain = await Blockchain.create();
-    blockchain.verbosity = 'vm_logs';
+    // blockchain.verbosity = 'vm_logs';
 
     longer = await blockchain.treasury('longer');
     longerPosition = await blockchain.treasury('longerPosition');
@@ -79,17 +72,12 @@ describe('Vamm', () => {
       to: longerPosition.address,
     });
 
-    const lastTx = increaseResult.events.at(-1);
-    expect(lastTx?.type).toBe('message_sent');
+    const lastVammTx = increaseResult.events.at(-1);
+    expect(lastVammTx?.type).toBe('message_sent');
 
-    if (lastTx?.type !== 'message_sent') throw new Error('nope');
+    if (lastVammTx?.type !== 'message_sent') throw new Error('nope');
 
-    const newPosition = unpackPositionData(
-      lastTx.body
-        .beginParse()
-        .skip(32 + 64)
-        .preloadRef()
-    );
+    const newPosition = unpackPositionData(lastVammTx.body.beginParse().preloadRef());
 
     expect(newPosition.size).toBe(543336n);
     expect(newPosition.margin).toBe(9964129n);
@@ -98,8 +86,7 @@ describe('Vamm', () => {
 
     const { ammState } = await vamm.getAmmData();
 
-    const totalSize =
-      ammState.totalLongPositionSize - ammState.totalShortPositionSize;
+    const totalSize = ammState.totalLongPositionSize - ammState.totalShortPositionSize;
     expect(totalSize).toBe(543336n);
     expect(ammState.totalLongPositionSize).toBe(543336n);
     expect(ammState.totalShortPositionSize).toBe(0n);
@@ -127,17 +114,12 @@ describe('Vamm', () => {
       to: longerPosition.address,
     });
 
-    const lastTx = increaseResult.events.at(-1);
-    expect(lastTx?.type).toBe('message_sent');
+    const lastVammTx = increaseResult.events.at(-1);
+    expect(lastVammTx?.type).toBe('message_sent');
 
-    if (lastTx?.type !== 'message_sent') throw new Error('nope');
+    if (lastVammTx?.type !== 'message_sent') throw new Error('nope');
 
-    const newPosition = unpackPositionData(
-      lastTx.body
-        .beginParse()
-        .skip(32 + 64)
-        .preloadRef()
-    );
+    const newPosition = unpackPositionData(lastVammTx.body.beginParse().preloadRef());
 
     expect(newPosition.size).toBe(814882n);
     expect(newPosition.margin).toBe(14946194n);
@@ -146,8 +128,7 @@ describe('Vamm', () => {
 
     const { ammState } = await vamm.getAmmData();
 
-    const totalSize =
-      ammState.totalLongPositionSize - ammState.totalShortPositionSize;
+    const totalSize = ammState.totalLongPositionSize - ammState.totalShortPositionSize;
     expect(totalSize).toBe(814882n);
     expect(ammState.totalLongPositionSize).toBe(814882n);
     expect(ammState.totalShortPositionSize).toBe(0n);

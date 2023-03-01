@@ -142,6 +142,7 @@
             .store_uint(db::baseAssetReserve, 128)
             .store_ref(new_position_ref);
 
+        raw_reserve(1000000, 0);
         send_simple_message(0, sender_addr, new_position_body, mode::carry_remaining_gas);
 
         ;; TODO: other messages: Vault, excesses, etc.
@@ -214,5 +215,6 @@
 }
 
 _ get_amm_data() method_id {
-    return load_raw_data();
+    var (int balance, int oraclePrice, slice router_addr, cell exchange_settings, cell amm_state, _) = load_raw_data();
+    return (balance, oraclePrice, router_addr, exchange_settings, amm_state);
 }
