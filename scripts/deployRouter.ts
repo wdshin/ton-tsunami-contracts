@@ -1,20 +1,18 @@
 import { Address, toNano } from 'ton-core';
 import { Router } from '../wrappers/Router/Router';
 import { compile, NetworkProvider } from '@ton-community/blueprint';
-import { addressToCell, sleep } from '../utils';
+import { sleep } from '../utils';
+import { JettonWallet } from '../wrappers/JettonWallet/JettonWallet';
 
 export async function run(provider: NetworkProvider) {
-  const deployerAddress = Address.parse(
-    '0:ADC17461D1241EEFCD189C7D50A94045F3E91849CB66D6CD3FFE0731AD6B3F9A' ??
-      'EQCtwXRh0SQe780YnH1QqUBF8-kYSctm1s0__gcxrWs_mjVn'
-  );
+  const deployerAddress = provider.sender().address!;
   const router = Router.createFromConfig(
     {
       vammCode: await compile('Vamm'),
       traderPositionWalletCode: await compile('TraderPositionWallet'),
       adminAddress: deployerAddress,
       whitelistedJettonWalletAddress: Address.parse(
-        'EQDQT70Py3hwjh5E9F7kEJfKlt9gofCSA6QJ-UIvZht0l9iL'
+        'EQDfWhm26zr7-6k8uJSLZXv4BCD531eDzPoED34eTknFR6Kd' // any, will be overwritten
       ),
     },
     await compile('Router')
@@ -24,35 +22,26 @@ export async function run(provider: NetworkProvider) {
   const openedContract = provider.open(router);
 
   console.log('Router address: ');
-  console.log(
-    openedContract.address.toString({ urlSafe: true, bounceable: true })
-  );
+  console.log(openedContract.address.toString({ urlSafe: true, bounceable: true }));
 
   const ammAddr = await openedContract.getAmmAddress();
-
   console.log('Amm address: ');
   console.log(ammAddr.toString({ urlSafe: true, bounceable: true }));
 
-  const usdcAddr = Address.parse(
-    'kQBaYzBs3DaCEFtaE8fwQat_74IPBaLRQOTgZgPTPOVUDsFb'
-  );
-  const { stack } = await provider
-    .api()
-    .callGetMethod(usdcAddr, 'get_wallet_address', [
-      { type: 'slice', cell: addressToCell(router.address) },
-    ]);
-  const jwAddress = stack.readAddress();
-  console.log('jwAddress: ');
-  console.log(jwAddress);
+  const initRouterData = await openedContract.getRouterData();
+  console.log('Router admin address: ');
+  console.log(initRouterData.adminAddress.toString());
+  console.log('Router token address: ');
+  console.log(initRouterData.whitelistedJettonWalletAddress.toString());
 
-  const adminAddress = await openedContract.getAmmAddress();
+  const usdcAddr = Address.parse('kQBaYzBs3DaCEFtaE8fwQat_74IPBaLRQOTgZgPTPOVUDsFb');
+  const usdcJW = await JettonWallet.createFromMaster(provider.api(), usdcAddr, router.address);
+  console.log('Target token address: ');
+  console.log(usdcJW.address.toString());
 
-  console.log('adminAddress: ');
-  console.log(adminAddress.toString({ urlSafe: true, bounceable: true }));
-
-  // if (!adminAddress.equals(deployerAddress)) {
-  //   throw new Error('adminAddress are not equal to deployerAddress');
-  // }
+  if (!initRouterData.adminAddress.equals(deployerAddress)) {
+    throw new Error('adminAddress are not equal to deployerAddress');
+  }
 
   await openedContract.sendSetAmmData(provider.sender(), {
     value: toNano('0.05'),
@@ -60,10 +49,16 @@ export async function run(provider: NetworkProvider) {
     price: 2.5,
   });
 
-  await sleep(1500);
+  await sleep(5000);
 
   await openedContract.sendSetWhitelistedAddress(provider.sender(), {
     value: toNano('0.05'),
-    address: jwAddress,
+    address: usdcJW.address,
   });
+
+  await sleep(5000);
+
+  const newjw = await openedContract.getWhitelistedJWAddress();
+  console.log('\nNew token address:');
+  console.log(newjw.toString());
 }

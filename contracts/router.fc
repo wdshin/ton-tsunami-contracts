@@ -9,15 +9,12 @@
 #include "router/op-codes.fc";
 #include "router/utils.fc";
 
-;; recv_internal is the main function of the contract and is called when it receives a message
 () recv_internal(int my_balance, int msg_value, cell in_msg_full, slice in_msg_body) impure {
     if (in_msg_body.slice_empty?()) { ;; ignore all empty messages
         return ();
     }
 
     slice cs = in_msg_full.begin_parse();
-    int flags = cs~load_uint(4); 
-
     throw_if(0, cs~load_uint(4) & 1); ;; ignore all bounced messages
 
     slice sender_addr = cs~load_msg_addr();
@@ -33,9 +30,9 @@
     if (op == op::transfer_notification) {
         var (int jetton_amount, slice from_addr, cell payload_ref) = (in_msg_body~load_coins(), in_msg_body~load_msg_addr(), in_msg_body.preload_ref());
 
-        ;; TODO: check if sender_addr is whitelisted jetton...
         load_data();
-        ;; throw_unless(error::invalid_jetton, equal_slices(sender_addr, ctx::whitelisted_jetton_wallet_address));
+        ;; Check if sender_addr is whitelisted token...
+        throw_unless(error::invalid_jetton, equal_slices(sender_addr, ctx::whitelisted_jetton_wallet_address));
 
         slice payload_s = payload_ref.begin_parse();
         
@@ -47,6 +44,7 @@
             
             ;; TODO: add index to payload_ref to work vith different vAMMs
 
+            ;; TODO: get vamm_addr from payload to reduce gas consumption
             var (_, slice vamm_addr) = get_vamm_state_init_and_address();
             var (cell position_state_init, slice trader_position_addr) = get_position_state_init_and_address(vamm_addr, from_addr);
 
@@ -59,7 +57,7 @@
 
     if (op == op::temp_set_amm_data) {
         load_data();
-        ;; throw_unless(error::not_an_admin, equal_slices(sender_addr, ctx::admin_address));
+        throw_unless(error::not_an_admin, equal_slices(sender_addr, ctx::admin_address));
 
         var (cell state_init, slice vamm_addr) = get_vamm_state_init_and_address();
         var body = begin_cell()
@@ -74,9 +72,8 @@
 
     if (op == op::temp_set_whitelisted_address) {
         load_data();
-        ;; throw_unless(error::not_an_admin, equal_slices(sender_addr, ctx::admin_address));
-
-        ctx::whitelisted_jetton_wallet_address = in_msg_body;
+        throw_unless(error::not_an_admin, equal_slices(sender_addr, ctx::admin_address));
+        ctx::whitelisted_jetton_wallet_address = in_msg_body~load_msg_addr();
         save_data();
         return ();
     }
@@ -84,14 +81,8 @@
     throw(0xffff);
 }
 
-slice get_admin_address() method_id {
-    load_data();
-    return ctx::admin_address;
-}
-
-slice get_whitelisted_jetton_wallet_address(slice trader_addr) method_id {
-    load_data();
-    return ctx::whitelisted_jetton_wallet_address;
+_ get_router_data() method_id {
+    return load_raw_data();
 }
 
 ;; TODO: index -> amm

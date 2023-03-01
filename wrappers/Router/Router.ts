@@ -22,10 +22,7 @@ export function routerConfigToCell(config: RouterConfig): Cell {
 }
 
 export class Router implements Contract {
-  constructor(
-    readonly address: Address,
-    readonly init?: { code: Cell; data: Cell }
-  ) {}
+  constructor(readonly address: Address, readonly init?: { code: Cell; data: Cell }) {}
 
   static createFromAddress(address: Address) {
     return new Router(address);
@@ -37,10 +34,7 @@ export class Router implements Contract {
     return new Router(contractAddress(workchain, init), init);
   }
 
-  static increasePosition(opts: {
-    queryID?: number;
-    body: IncreasePositionBody;
-  }) {
+  static increasePosition(opts: { queryID?: number; body: IncreasePositionBody }) {
     return beginCell()
       .storeUint(RouterOpcodes.increasePosition, 32)
       .storeUint(opts.queryID ?? 0, 64)
@@ -48,11 +42,7 @@ export class Router implements Contract {
       .endCell();
   }
 
-  static tempSetAmmData(opts: {
-    queryID?: number;
-    balance: number;
-    price: number;
-  }) {
+  static tempSetAmmData(opts: { queryID?: number; balance: number; price: number }) {
     return beginCell()
       .storeUint(RouterOpcodes.tempSetAmmData, 32)
       .storeUint(opts.queryID ?? 0, 64)
@@ -63,10 +53,7 @@ export class Router implements Contract {
       .endCell();
   }
 
-  static tempSetWhitelistedAddress(opts: {
-    queryID?: number;
-    address: Address;
-  }) {
+  static tempSetWhitelistedAddress(opts: { queryID?: number; address: Address }) {
     return beginCell()
       .storeUint(RouterOpcodes.tempSetWhitelistedAddress, 32)
       .storeUint(opts.queryID ?? 0, 64)
@@ -105,28 +92,30 @@ export class Router implements Contract {
     });
   }
 
+  async getRouterData(provider: ContractProvider): Promise<RouterConfig> {
+    const { stack } = await provider.get('get_router_data', []);
+    return {
+      adminAddress: stack.readAddress(),
+      whitelistedJettonWalletAddress: stack.readAddress(),
+      traderPositionWalletCode: stack.readCell(),
+      vammCode: stack.readCell(),
+    };
+  }
+
   async getAmmAddress(provider: ContractProvider) {
     const result = await provider.get('get_amm_address', []);
     return result.stack.readAddress();
   }
 
   async getWhitelistedJWAddress(provider: ContractProvider) {
-    const result = await provider.get(
-      'get_whitelisted_jetton_wallet_address',
-      []
-    );
-    return result.stack.readAddress();
+    return (await this.getRouterData(provider)).whitelistedJettonWalletAddress;
   }
 
   async getAdminAddress(provider: ContractProvider) {
-    const result = await provider.get('get_admin_address', []);
-    return result.stack.readAddress();
+    return (await this.getRouterData(provider)).adminAddress;
   }
 
-  async getTraderPositionAddress(
-    provider: ContractProvider,
-    traderAddress: Address
-  ) {
+  async getTraderPositionAddress(provider: ContractProvider, traderAddress: Address) {
     const result = await provider.get('get_trader_position_address', [
       {
         type: 'slice',

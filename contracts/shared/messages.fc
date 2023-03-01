@@ -7,8 +7,9 @@ const mode::carry_remaining_gas = 64;
 const mode::carry_all_balance = 128;
 
 () send_empty_message(int amount, slice to, int mode) impure inline_ref {
+  ;; .store_uint(0x18, 6)
   cell msg = begin_cell()
-        .store_uint(0x18, 6)
+        .store_uint(0x10, 6)
         .store_slice(to)
         .store_coins(amount)
         .store_uint(0, 107)

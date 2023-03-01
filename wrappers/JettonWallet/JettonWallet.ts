@@ -1,12 +1,6 @@
-import {
-  Address,
-  beginCell,
-  Cell,
-  Contract,
-  ContractProvider,
-  Sender,
-  SendMode,
-} from 'ton-core';
+import { TonClient } from 'ton';
+import { Address, beginCell, Cell, Contract, ContractProvider, Sender, SendMode } from 'ton-core';
+import { addressToCell } from '../../utils';
 
 const Opcodes = {
   transfer: 0xf8a7ea5,
@@ -22,13 +16,19 @@ type Transfer = {
 };
 
 export class JettonWallet implements Contract {
-  constructor(
-    readonly address: Address,
-    readonly init?: { code: Cell; data: Cell }
-  ) {}
+  constructor(readonly address: Address, readonly init?: { code: Cell; data: Cell }) {}
 
   static createFromAddress(address: Address) {
     return new JettonWallet(address);
+  }
+
+  static async createFromMaster(client: TonClient, masterAddress: Address, ownerAddress: Address) {
+    const jwAddress = (
+      await client.callGetMethod(masterAddress, 'get_wallet_address', [
+        { type: 'slice', cell: addressToCell(ownerAddress) },
+      ])
+    ).stack.readAddress();
+    return JettonWallet.createFromAddress(jwAddress);
   }
 
   static transferBody(opts: Transfer) {
@@ -51,12 +51,7 @@ export class JettonWallet implements Contract {
     return cell.endCell();
   }
 
-  async sendTransfer(
-    provider: ContractProvider,
-    via: Sender,
-    value: bigint,
-    opts: Transfer
-  ) {
+  async sendTransfer(provider: ContractProvider, via: Sender, value: bigint, opts: Transfer) {
     await provider.internal(via, {
       value,
       sendMode: SendMode.PAY_GAS_SEPARATLY,
