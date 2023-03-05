@@ -1,6 +1,6 @@
 import '@ton-community/test-utils';
 import { compile } from '@ton-community/blueprint';
-import { Blockchain, Event, OpenedContract, TreasuryContract } from '@ton-community/sandbox';
+import { Blockchain, Event, SandboxContract, TreasuryContract } from '@ton-community/sandbox';
 import { toNano } from 'ton-core';
 
 import { IncreasePositionBody, unpackWithdrawMessage, Vamm } from '../wrappers/Vamm';
@@ -41,18 +41,23 @@ function getAndUnpackWithdrawMessage(events: Event[], index = -1) {
 
 describe('vAMM should work with positive funding', () => {
   let blockchain: Blockchain;
-  let vamm: OpenedContract<Vamm>;
-  let longer: OpenedContract<TreasuryContract>;
-  let longerPosition: OpenedContract<TreasuryContract>;
+  let vamm: SandboxContract<Vamm>;
+  let longer: SandboxContract<TreasuryContract>;
+  let longerPosition: SandboxContract<TreasuryContract>;
   let lastLongerPosition: PositionData;
-  let shorter: OpenedContract<TreasuryContract>;
-  let shorterPosition: OpenedContract<TreasuryContract>;
+  let shorter: SandboxContract<TreasuryContract>;
+  let shorterPosition: SandboxContract<TreasuryContract>;
   let lastShorterPosition: PositionData;
-  let router: OpenedContract<TreasuryContract>;
+  let router: SandboxContract<TreasuryContract>;
 
   beforeAll(async () => {
     blockchain = await Blockchain.create();
-    blockchain.verbosity = 'vm_logs';
+    blockchain.verbosity = {
+      print: true,
+      vmLogs: 'vm_logs',
+      blockchainLogs: true,
+      debugLogs: true,
+    };
 
     longer = await blockchain.treasury('longer');
     longerPosition = await blockchain.treasury('longerPosition');
@@ -71,12 +76,7 @@ describe('vAMM should work with positive funding', () => {
     );
 
     const deployer = await blockchain.treasury('deployer');
-    await deployer.send({
-      init: vamm.init!,
-      value: toNano('0.5'),
-      to: vamm.address,
-      bounce: false,
-    });
+    await vamm.sendDeploy(deployer.getSender(), toNano('0.5'));
   });
 
   it('Can open position', async () => {

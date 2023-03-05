@@ -129,8 +129,8 @@ export function unpackWithdrawMessage(body: Cell) {
   if (cs.loadUint(32) !== VammOpcodes.withdraw) throw new Error('Not a withdraw message');
   return {
     queryId: cs.loadUint(64),
-    tradderAddress: cs.loadAddress(),
     amount: cs.loadCoins(),
+    tradderAddress: cs.loadAddress(),
   };
 }
 
@@ -195,13 +195,13 @@ export class Vamm implements Contract {
       .endCell();
   }
 
-  // async sendDeploy(provider: ContractProvider, via: Sender, value: bigint) {
-  //   await provider.internal(via, {
-  //     value,
-  //     sendMode: SendMode.PAY_GAS_SEPARATLY,
-  //     body: beginCell().endCell(),
-  //   });
-  // }
+  async sendDeploy(provider: ContractProvider, via: Sender, value: bigint) {
+    await provider.internal(via, {
+      value,
+      sendMode: SendMode.PAY_GAS_SEPARATLY,
+      body: beginCell().endCell(),
+    });
+  }
 
   async sendIncreasePosition(
     provider: ContractProvider,
