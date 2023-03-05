@@ -4,7 +4,7 @@ import { Router } from '../wrappers/Router/Router';
 import { TraderPositionWallet } from '../wrappers/TraderPositionWallet';
 
 export async function run(provider: NetworkProvider) {
-  const routerAddress = Address.parse('EQBZYxBWMiD1xBOwGnIEktBxX_MaU2OGVR8bWsDG4qCJXSj4');
+  const routerAddress = Address.parse('EQBgo51AFP7EWGms6mKN444S88pfpvpwRLaV0F94hyApBMdk');
   const openedRouter = provider.open(Router.createFromAddress(routerAddress));
 
   const tpwAddress = await openedRouter.getTraderPositionAddress(provider.sender().address!);
@@ -15,12 +15,8 @@ export async function run(provider: NetworkProvider) {
 
   console.log('positionData.size', positionData.size);
 
-  // getPositionData
-  //     .storeUint(opts.size ?? opts.oldPosition.size, 128)
-  //     .storeUint(opts.minQuoteAssetAmount ?? 0, 128)
-  //     .storeBit(opts.addToMargin ?? false)
   await openedRouter.sendClosePosition(provider.sender(), {
-    value: toNano('0.2'),
+    value: toNano('0.3'),
     size: positionData.size,
     minQuoteAssetAmount: 0n,
     addToMargin: false,

@@ -198,7 +198,6 @@ export class Vamm implements Contract {
   async sendDeploy(provider: ContractProvider, via: Sender, value: bigint) {
     await provider.internal(via, {
       value,
-      sendMode: SendMode.PAY_GAS_SEPARATLY,
       body: beginCell().endCell(),
     });
   }
@@ -215,7 +214,7 @@ export class Vamm implements Contract {
   ) {
     await provider.internal(via, {
       value: opts.value,
-      sendMode: SendMode.PAY_GAS_SEPARATLY,
+      sendMode: SendMode.PAY_GAS_SEPARATELY,
       body: Vamm.increasePosition(opts),
     });
   }
@@ -232,7 +231,7 @@ export class Vamm implements Contract {
   ) {
     await provider.internal(via, {
       value: opts.value,
-      sendMode: SendMode.PAY_GAS_SEPARATLY,
+      sendMode: SendMode.PAY_GAS_SEPARATELY,
       body: Vamm.addMargin(opts),
     });
   }
@@ -249,7 +248,7 @@ export class Vamm implements Contract {
   ) {
     await provider.internal(via, {
       value: opts.value,
-      sendMode: SendMode.PAY_GAS_SEPARATLY,
+      sendMode: SendMode.PAY_GAS_SEPARATELY,
       body: Vamm.removeMargin(opts),
     });
   }
@@ -268,7 +267,7 @@ export class Vamm implements Contract {
   ) {
     await provider.internal(via, {
       value: opts.value,
-      sendMode: SendMode.PAY_GAS_SEPARATLY,
+      sendMode: SendMode.PAY_GAS_SEPARATELY,
       body: Vamm.closePosition(opts),
     });
   }

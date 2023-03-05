@@ -253,7 +253,7 @@ describe('vAMM should work with positive funding', () => {
   });
 
   it('Can close long position', async () => {
-    await sleep(10000);
+    await sleep(1100);
     const closeResult = await vamm.sendClosePosition(longerPosition.getSender(), {
       value: toNano('0.2'),
       oldPosition: lastLongerPosition,

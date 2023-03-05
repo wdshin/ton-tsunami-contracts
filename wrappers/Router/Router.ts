@@ -84,6 +84,14 @@ export class Router implements Contract {
       .endCell();
   }
 
+  async sendDeploy(provider: ContractProvider, via: Sender, value: bigint, body?: Cell) {
+    await provider.internal(via, {
+      value,
+      sendMode: SendMode.PAY_GAS_SEPARATELY,
+      body,
+    });
+  }
+
   async sendSetWhitelistedAddress(
     provider: ContractProvider,
     via: Sender,
@@ -94,7 +102,7 @@ export class Router implements Contract {
   ) {
     await provider.internal(via, {
       value: opts.value,
-      sendMode: SendMode.PAY_GAS_SEPARATLY,
+      sendMode: SendMode.PAY_GAS_SEPARATELY,
       body: Router.tempSetWhitelistedAddress(opts),
     });
   }
@@ -112,7 +120,7 @@ export class Router implements Contract {
   ) {
     await provider.internal(via, {
       value: opts.value,
-      sendMode: SendMode.PAY_GAS_SEPARATLY,
+      sendMode: SendMode.PAY_GAS_SEPARATELY,
       body: Router.closePosition(opts),
     });
   }
@@ -128,7 +136,7 @@ export class Router implements Contract {
   ) {
     await provider.internal(via, {
       value: opts.value,
-      sendMode: SendMode.PAY_GAS_SEPARATLY,
+      sendMode: SendMode.PAY_GAS_SEPARATELY,
       body: Router.tempSetAmmData(opts),
     });
   }

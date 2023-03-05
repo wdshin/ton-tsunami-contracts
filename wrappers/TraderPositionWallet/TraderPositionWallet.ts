@@ -53,7 +53,7 @@ export class TraderPositionWallet implements Contract {
   // async sendDeploy(provider: ContractProvider, via: Sender, value: bigint) {
   //   await provider.internal(via, {
   //     value,
-  //     sendMode: SendMode.PAY_GAS_SEPARATLY,
+  //     sendMode: SendMode.PAY_GAS_SEPARATELY,
   //     body: beginCell().endCell(),
   //   });
   // }
@@ -69,7 +69,7 @@ export class TraderPositionWallet implements Contract {
   // ) {
   //   await provider.internal(via, {
   //     value: opts.value,
-  //     sendMode: SendMode.PAY_GAS_SEPARATLY,
+  //     sendMode: SendMode.PAY_GAS_SEPARATELY,
   //     body: beginCell()
   //       .storeUint(TraderPositionWalletOpcodes.increase, 32)
   //       .storeUint(opts.queryID ?? 0, 64)

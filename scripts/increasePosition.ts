@@ -9,7 +9,7 @@ const fakeUsdAddr = Address.parse('kQDuLkq23W-n4U200Ppqn-6ZLcGa2CTqa3KKgrMB0Zpwq
 const Direction = { long: 1, short: 2 };
 
 export async function run(provider: NetworkProvider) {
-  const routerAddress = Address.parse('EQBZYxBWMiD1xBOwGnIEktBxX_MaU2OGVR8bWsDG4qCJXSj4');
+  const routerAddress = Address.parse('EQBgo51AFP7EWGms6mKN444S88pfpvpwRLaV0F94hyApBMdk');
 
   const openedRouter = provider.open(Router.createFromAddress(routerAddress));
   const positionAddres = await openedRouter.getTraderPositionAddress(provider.sender().address!);

@@ -54,7 +54,7 @@ export class JettonWallet implements Contract {
   async sendTransfer(provider: ContractProvider, via: Sender, value: bigint, opts: Transfer) {
     await provider.internal(via, {
       value,
-      sendMode: SendMode.PAY_GAS_SEPARATLY,
+      sendMode: SendMode.PAY_GAS_SEPARATELY,
       body: JettonWallet.transferBody(opts),
     });
   }

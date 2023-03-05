@@ -1,7 +1,6 @@
 import { Address, toNano } from 'ton-core';
 import { Router } from '../wrappers/Router/Router';
 import { compile, NetworkProvider } from '@ton-community/blueprint';
-import { sleep } from '../utils';
 import { JettonWallet } from '../wrappers/JettonWallet/JettonWallet';
 
 export async function run(provider: NetworkProvider) {
@@ -12,14 +11,21 @@ export async function run(provider: NetworkProvider) {
       traderPositionWalletCode: await compile('TraderPositionWallet'),
       adminAddress: deployerAddress,
       whitelistedJettonWalletAddress: Address.parse(
-        'EQB6tF3q5Jj_TRH2A9pj4xljoOibuaajCbY_ofR9HzX7zaHe' // any, will be overwritten
+        'EQAEDydQwnlfAEgcAgK89WLTsKHhz28G_nxQWuf3lEQzpx8q' // any, will be overwritten
       ),
     },
     await compile('Router')
   );
-
-  await provider.deploy(router, toNano('0.05'));
   const openedContract = provider.open(router);
+
+  const usdcAddr = Address.parse('kQBaYzBs3DaCEFtaE8fwQat_74IPBaLRQOTgZgPTPOVUDsFb');
+  const usdcJW = await JettonWallet.createFromMaster(provider.api(), usdcAddr, router.address);
+  await openedContract.sendDeploy(
+    provider.sender(),
+    toNano('0.05'),
+    Router.tempSetWhitelistedAddress({ address: usdcJW.address })
+  );
+  await provider.waitForDeploy(router.address);
 
   console.log('Router address: ');
   console.log(openedContract.address.toString({ urlSafe: true, bounceable: true }));
@@ -34,11 +40,6 @@ export async function run(provider: NetworkProvider) {
   console.log('Router token address: ');
   console.log(initRouterData.whitelistedJettonWalletAddress.toString());
 
-  const usdcAddr = Address.parse('kQBaYzBs3DaCEFtaE8fwQat_74IPBaLRQOTgZgPTPOVUDsFb');
-  const usdcJW = await JettonWallet.createFromMaster(provider.api(), usdcAddr, router.address);
-  console.log('Target token address: ');
-  console.log(usdcJW.address.toString());
-
   if (!initRouterData.adminAddress.equals(deployerAddress)) {
     throw new Error('adminAddress are not equal to deployerAddress');
   }
@@ -48,17 +49,4 @@ export async function run(provider: NetworkProvider) {
     balance: 10000,
     price: 2.5,
   });
-
-  await sleep(5000);
-
-  await openedContract.sendSetWhitelistedAddress(provider.sender(), {
-    value: toNano('0.05'),
-    address: usdcJW.address,
-  });
-
-  await sleep(5000);
-
-  const newjw = await openedContract.getWhitelistedJWAddress();
-  console.log('\nNew token address:');
-  console.log(newjw.toString());
 }
