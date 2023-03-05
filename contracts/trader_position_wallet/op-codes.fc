@@ -1,0 +1,2 @@
+const op::provide_position = "op::provide_position"c;
+const op::update_position = "op::update_position"c;

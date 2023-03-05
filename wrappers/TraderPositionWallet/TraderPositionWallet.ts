@@ -1,24 +1,12 @@
-import {
-  Address,
-  beginCell,
-  Cell,
-  Contract,
-  contractAddress,
-  ContractProvider,
-  Sender,
-  SendMode,
-} from 'ton-core';
+import { Address, beginCell, Cell, Contract, contractAddress, ContractProvider } from 'ton-core';
 
-import {
-  PositionData,
-  TraderPositionWalletConfig,
-  TraderPositionWalletOpcodes,
-} from './TraderPositionWallet.types';
+import { PositionData, TraderPositionWalletConfig } from './TraderPositionWallet.types';
 
 export function unpackPositionData(cell: Cell): PositionData {
   const cs = cell.beginParse();
 
   return {
+    traderAddress: cs.loadAddress(),
     size: BigInt(cs.loadInt(128)),
     margin: BigInt(cs.loadUint(128)),
     openNotional: BigInt(cs.loadUint(128)),
@@ -30,6 +18,7 @@ export function unpackPositionData(cell: Cell): PositionData {
 
 export function packPositionData(data: PositionData) {
   return beginCell()
+    .storeAddress(data.traderAddress)
     .storeInt(data.size, 128)
     .storeUint(data.margin, 128)
     .storeUint(data.openNotional, 128)
@@ -39,11 +28,8 @@ export function packPositionData(data: PositionData) {
     .endCell();
 }
 
-export function traderPositionWalletConfigToCell(
-  config: TraderPositionWalletConfig
-): Cell {
+export function traderPositionWalletConfigToCell(config: TraderPositionWalletConfig): Cell {
   return beginCell()
-    .storeAddress(config.traderAddress)
     .storeAddress(config.vammAddress)
     .storeAddress(config.routerAddress)
     .storeUint(config.isBusy, 1)
@@ -52,20 +38,13 @@ export function traderPositionWalletConfigToCell(
 }
 
 export class TraderPositionWallet implements Contract {
-  constructor(
-    readonly address: Address,
-    readonly init?: { code: Cell; data: Cell }
-  ) {}
+  constructor(readonly address: Address, readonly init?: { code: Cell; data: Cell }) {}
 
   static createFromAddress(address: Address) {
     return new TraderPositionWallet(address);
   }
 
-  static createFromConfig(
-    config: TraderPositionWalletConfig,
-    code: Cell,
-    workchain = 0
-  ) {
+  static createFromConfig(config: TraderPositionWalletConfig, code: Cell, workchain = 0) {
     const data = traderPositionWalletConfigToCell(config);
     const init = { code, data };
     return new TraderPositionWallet(contractAddress(workchain, init), init);
@@ -99,12 +78,9 @@ export class TraderPositionWallet implements Contract {
   //   });
   // }
 
-  async getPositionData(
-    provider: ContractProvider
-  ): Promise<TraderPositionWalletConfig> {
+  async getPositionData(provider: ContractProvider): Promise<TraderPositionWalletConfig> {
     const { stack } = await provider.get('get_position_data', []);
     return {
-      traderAddress: stack.readAddress(),
       vammAddress: stack.readAddress(),
       routerAddress: stack.readAddress(),
       isBusy: stack.readNumber(),

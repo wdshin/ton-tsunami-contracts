@@ -1,5 +1,6 @@
 _ unpack_position_data(slice ds) {
   return (
+    ds~load_msg_addr(),       ;; trader_addr
     ds~load_int(128),         ;; size
     ds~load_uint(128),        ;; margin
     ds~load_uint(128),        ;; open_notional
@@ -9,8 +10,9 @@ _ unpack_position_data(slice ds) {
   );
 }
 
-cell pack_position_data(int size, int margin, int open_notional, int last_updated_cumulative_premium, int fee, int last_updated_timestamp) {
+cell pack_position_data(slice trader_addr, int size, int margin, int open_notional, int last_updated_cumulative_premium, int fee, int last_updated_timestamp) {
   return begin_cell()
+            .store_slice(trader_addr)
             .store_int(size, 128)
             .store_uint(margin, 128)
             .store_uint(open_notional, 128)

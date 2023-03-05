@@ -9,7 +9,7 @@ import {
   SendMode,
 } from 'ton-core';
 import { addressToCell, toStablecoin } from '../../utils';
-import { IncreasePositionBody, packIncreasePositionBody, Vamm } from '../Vamm';
+
 import { RouterConfig, RouterOpcodes } from './Router.types';
 
 export function routerConfigToCell(config: RouterConfig): Cell {
@@ -34,11 +34,16 @@ export class Router implements Contract {
     return new Router(contractAddress(workchain, init), init);
   }
 
-  static increasePosition(opts: { queryID?: number; body: IncreasePositionBody }) {
+  static increasePosition(opts: {
+    direction: number; // 1 | 2
+    leverage: bigint;
+    minBaseAssetAmount: bigint;
+  }) {
     return beginCell()
       .storeUint(RouterOpcodes.increasePosition, 32)
-      .storeUint(opts.queryID ?? 0, 64)
-      .storeSlice(packIncreasePositionBody(opts.body).asSlice())
+      .storeUint(opts.direction, 2)
+      .storeUint(opts.leverage, 32)
+      .storeUint(opts.minBaseAssetAmount, 128)
       .endCell();
   }
 
@@ -61,6 +66,24 @@ export class Router implements Contract {
       .endCell();
   }
 
+  static closePosition(opts: {
+    queryID?: number;
+    addToMargin: boolean;
+    size: bigint;
+    minQuoteAssetAmount: bigint;
+  }) {
+    //   int _size = payload_s~load_uint(128);
+    // int _minQuoteAssetAmount = payload_s~load_uint(128);
+    // int _addToMargin = payload_s~load_uint(1);
+    return beginCell()
+      .storeUint(RouterOpcodes.closePosition, 32)
+      .storeUint(opts.queryID ?? 0, 64)
+      .storeUint(opts.size, 128)
+      .storeUint(opts.minQuoteAssetAmount, 128)
+      .storeBit(opts.addToMargin)
+      .endCell();
+  }
+
   async sendSetWhitelistedAddress(
     provider: ContractProvider,
     via: Sender,
@@ -73,6 +96,24 @@ export class Router implements Contract {
       value: opts.value,
       sendMode: SendMode.PAY_GAS_SEPARATLY,
       body: Router.tempSetWhitelistedAddress(opts),
+    });
+  }
+
+  async sendClosePosition(
+    provider: ContractProvider,
+    via: Sender,
+    opts: {
+      value: bigint;
+      queryID?: number;
+      addToMargin: boolean;
+      size: bigint;
+      minQuoteAssetAmount: bigint;
+    }
+  ) {
+    await provider.internal(via, {
+      value: opts.value,
+      sendMode: SendMode.PAY_GAS_SEPARATLY,
+      body: Router.closePosition(opts),
     });
   }
 

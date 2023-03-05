@@ -5,6 +5,8 @@ import {
   Contract,
   contractAddress,
   ContractProvider,
+  Sender,
+  SendMode,
 } from 'ton';
 import { packPositionData, PositionData } from '../TraderPositionWallet';
 
@@ -14,6 +16,7 @@ import {
   VammConfig,
   VammOpcodes,
   IncreasePositionBody,
+  FundingState,
 } from './Vamm.types';
 
 export function packExchangeSettings(settings: ExchangeSettings) {
@@ -78,12 +81,36 @@ export function unpackAmmState(cell: Cell): AmmState {
   };
 }
 
+export function packFundingState(state: FundingState) {
+  return beginCell()
+    .storeUint(state.latestLongCumulativePremiumFraction, 128)
+    .storeUint(state.latestShortCumulativePremiumFraction, 128)
+    .storeUint(state.nextFundingBlockTimestamp, 32)
+    .storeUint(state.fundingMode, 2)
+    .storeUint(state.longFundingRate, 32)
+    .storeUint(state.shortFundingRate, 32)
+    .endCell();
+}
+
+export function unpackFundingState(cell: Cell): FundingState {
+  const cs = cell.beginParse();
+  return {
+    latestLongCumulativePremiumFraction: BigInt(cs.loadUint(128)),
+    latestShortCumulativePremiumFraction: BigInt(cs.loadUint(128)),
+    nextFundingBlockTimestamp: BigInt(cs.loadUint(32)),
+    fundingMode: cs.loadUint(2),
+    longFundingRate: BigInt(cs.loadUint(32)),
+    shortFundingRate: BigInt(cs.loadUint(32)),
+  };
+}
+
 export function vammConfigToCell(config: VammConfig): Cell {
   return beginCell()
     .storeCoins(config.balance)
     .storeUint(config.oraclePrice, 128)
     .storeAddress(config.routerAddr)
     .storeRef(packExchangeSettings(config.exchangeSettings))
+    .storeRef(packAmmState(config.ammState))
     .storeRef(packAmmState(config.ammState))
     .storeRef(config.positionCode)
     .endCell();
@@ -94,8 +121,17 @@ export function packIncreasePositionBody(body: IncreasePositionBody): Cell {
     .storeUint(body.direction, 2)
     .storeUint(body.leverage, 32)
     .storeUint(body.minBaseAssetAmount, 128)
-    .storeAddress(body.traderAddress)
     .endCell();
+}
+
+export function unpackWithdrawMessage(body: Cell) {
+  const cs = body.beginParse();
+  if (cs.loadUint(32) !== VammOpcodes.withdraw) throw new Error('Not a withdraw message');
+  return {
+    queryId: cs.loadUint(64),
+    tradderAddress: cs.loadAddress(),
+    amount: cs.loadCoins(),
+  };
 }
 
 export class Vamm implements Contract {
@@ -111,6 +147,23 @@ export class Vamm implements Contract {
     return new Vamm(contractAddress(workchain, init), init);
   }
 
+  static closePosition(opts: {
+    queryID?: number;
+    oldPosition: PositionData;
+    addToMargin?: boolean;
+    size?: bigint;
+    minQuoteAssetAmount?: bigint;
+  }) {
+    return beginCell()
+      .storeUint(VammOpcodes.closePosition, 32)
+      .storeUint(opts.queryID ?? 0, 64)
+      .storeUint(opts.size ?? opts.oldPosition.size, 128)
+      .storeUint(opts.minQuoteAssetAmount ?? 0, 128)
+      .storeBit(opts.addToMargin ?? false)
+      .storeRef(packPositionData(opts.oldPosition))
+      .endCell();
+  }
+
   static increasePosition(opts: {
     queryID?: number;
     oldPosition: PositionData;
@@ -124,6 +177,24 @@ export class Vamm implements Contract {
       .endCell();
   }
 
+  static addMargin(opts: { queryID?: number; oldPosition: PositionData; amount: bigint }) {
+    return beginCell()
+      .storeUint(VammOpcodes.addMargin, 32)
+      .storeUint(opts.queryID ?? 0, 64)
+      .storeCoins(opts.amount)
+      .storeRef(packPositionData(opts.oldPosition))
+      .endCell();
+  }
+
+  static removeMargin(opts: { queryID?: number; oldPosition: PositionData; amount: bigint }) {
+    return beginCell()
+      .storeUint(VammOpcodes.removeMargin, 32)
+      .storeUint(opts.queryID ?? 0, 64)
+      .storeCoins(opts.amount)
+      .storeRef(packPositionData(opts.oldPosition))
+      .endCell();
+  }
+
   // async sendDeploy(provider: ContractProvider, via: Sender, value: bigint) {
   //   await provider.internal(via, {
   //     value,
@@ -132,32 +203,77 @@ export class Vamm implements Contract {
   //   });
   // }
 
-  // async sendIncreasePosition(
-  //   provider: ContractProvider,
-  //   via: Sender,
-  //   opts: {
-  //     value: bigint;
-  //     queryID?: number;
-  //     position: Cell;
-  //     increasePayload: Cell;
-  //   }
-  // ) {
-  //   await provider.internal(via, {
-  //     value: opts.value,
-  //     sendMode: SendMode.PAY_GAS_SEPARATLY,
-  //     body: beginCell()
-  //       .storeUint(VammOpcodes.increasePosition, 32)
-  //       .storeUint(opts.queryID ?? 0, 64)
-  //       .storeCoins(toNano(100))
-  //       .storeRef(opts.position)
-  //       .storeRef(opts.increasePayload)
-  //       .endCell(),
-  //   });
-  // }
+  async sendIncreasePosition(
+    provider: ContractProvider,
+    via: Sender,
+    opts: {
+      value: bigint;
+      queryID?: number;
+      oldPosition: PositionData;
+      increasePositionBody: IncreasePositionBody;
+    }
+  ) {
+    await provider.internal(via, {
+      value: opts.value,
+      sendMode: SendMode.PAY_GAS_SEPARATLY,
+      body: Vamm.increasePosition(opts),
+    });
+  }
 
-  async getAmmData(
-    provider: ContractProvider
-  ): Promise<Omit<VammConfig, 'positionCode'>> {
+  async sendAddMargin(
+    provider: ContractProvider,
+    via: Sender,
+    opts: {
+      value: bigint;
+      queryID?: number;
+      oldPosition: PositionData;
+      amount: bigint;
+    }
+  ) {
+    await provider.internal(via, {
+      value: opts.value,
+      sendMode: SendMode.PAY_GAS_SEPARATLY,
+      body: Vamm.addMargin(opts),
+    });
+  }
+
+  async sendRemoveMargin(
+    provider: ContractProvider,
+    via: Sender,
+    opts: {
+      value: bigint;
+      queryID?: number;
+      oldPosition: PositionData;
+      amount: bigint;
+    }
+  ) {
+    await provider.internal(via, {
+      value: opts.value,
+      sendMode: SendMode.PAY_GAS_SEPARATLY,
+      body: Vamm.removeMargin(opts),
+    });
+  }
+
+  async sendClosePosition(
+    provider: ContractProvider,
+    via: Sender,
+    opts: {
+      value: bigint;
+      queryID?: number;
+      oldPosition: PositionData;
+      addToMargin?: boolean;
+      size?: bigint;
+      minQuoteAssetAmount?: bigint;
+    }
+  ) {
+    await provider.internal(via, {
+      value: opts.value,
+      sendMode: SendMode.PAY_GAS_SEPARATLY,
+      body: Vamm.closePosition(opts),
+    });
+  }
+
+  async getAmmData(provider: ContractProvider): Promise<Omit<VammConfig, 'positionCode'>> {
     const { stack } = await provider.get('get_amm_data', []);
 
     return {
@@ -166,6 +282,7 @@ export class Vamm implements Contract {
       routerAddr: stack.readAddress(),
       exchangeSettings: unpackExchangeSettings(stack.readCell()),
       ammState: unpackAmmState(stack.readCell()),
+      fundingState: unpackFundingState(stack.readCell()),
       // positionCode: stack.readCell(),
     };
   }

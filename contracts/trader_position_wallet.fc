@@ -4,8 +4,8 @@
 #include "shared/messages.fc";
 
 #include "trader_position_wallet/storage.fc";
+#include "trader_position_wallet/op-codes.fc";
 
-#include "vamm/op-codes.fc";
 
 
 () recv_internal(int my_balance, int msg_value, cell in_msg_full, slice in_msg_body) impure {
@@ -21,9 +21,9 @@
 
     slice sender_addr = cs~load_msg_addr();
 
-    int op = in_msg_body.preload_uint(32);
+    int op = in_msg_body~load_uint(32);
 
-    if ((op == op::increase_position) | (op == op::close_position)) {
+    if (op == op::provide_position) {
         load_data();
         throw_if(400, ctx::is_busy);
         throw_unless(401, equal_slices(sender_addr, ctx::router_addr));
@@ -45,7 +45,9 @@
         ctx::position_ref = in_msg_body.preload_ref();
         ctx::is_busy = 0;
 
-        send_empty_message(0, ctx::trader_addr, mode::carry_remaining_gas);
+        slice position_s = ctx::position_ref.begin_parse();
+        slice trader_addr = position_s~load_msg_addr();
+        send_empty_message(0, trader_addr, mode::carry_remaining_gas);
         
         save_data();
         return ();
@@ -55,6 +57,6 @@
 }
 
 
-(slice, slice, slice, int, cell) get_position_data() method_id {
+(slice, slice, int, cell) get_position_data() method_id {
     return load_raw_data();
 }

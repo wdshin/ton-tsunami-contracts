@@ -10,6 +10,7 @@
 #include "vamm/storage.fc";
 #include "vamm/errors.fc";
 #include "vamm/utils.fc";
+#include "vamm/handlers.fc";
 
 #include "trader_position_wallet/packers.fc";
 ;; #include "oracle/op-codes.fc";
@@ -50,164 +51,28 @@
     }
 
     if (op == op::increase_position) {
-        load_data();
-        slice position_s = in_msg_body.preload_ref().begin_parse();
-        slice payload_s = in_msg_body;
-
-        ;; TODO: msg layout
-        int raw_amount = payload_s~load_coins();
-        int direction = payload_s~load_uint(2);
-        int leverage = payload_s~load_uint(32);
-        int min_base_asset_amount = payload_s~load_uint(128);
-        slice trader_addr = payload_s~load_msg_addr();
-
-        ;; Check...
-        ;; TODO: check asset on router
-        if ((direction != direction::long) & (direction != direction::short) 
-        | ~ requireMoreMarginRatio(divd(DECIMAL_UNIT, leverage), db::initMarginRatio, true)
-        ) {
-            ~dump(401);
-            ;; TODO: cant throw, revert amount back 
-            return ();
-        }
-        ;; TODO: fee calculations    
-
-        int _amount = raw_amount.divd(muld(db::fee, leverage) + DECIMAL_UNIT);
-
-        var (int old_position_size,
-            int old_position_margin,
-            int old_position_open_notional,
-            int old_position_last_updated_cumulative_premium,
-            int old_position_fee,
-            int old_position_last_updated_timestamp) = unpack_position_data(position_s);
-
-
-        int isNewPosition = old_position_size == 0;
-        int isSameDirection = old_position_size > 0 ? direction == direction::long : direction == direction::short;
-        int expandExisting = (~ isNewPosition) & isSameDirection;
-        int isAdd = direction == direction::long;
-
-
-        if (~ (isNewPosition | expandExisting)) {
-            ~dump(402);
-            ;; TODO: cant throw, revert amount back 
-            return ();
-        }
-        int openNotional = muld(_amount, leverage);
-        var ( 
-            int amountBaseAssetBought,
-            int quoteAssetReserveAfter, 
-            int baseAssetReserveAfter
-        ) = swapInput(isAdd, openNotional);
-
-        ;; TODO: check min base amount 
-        ;; throw("Limit error: " + abs(amountBaseAssetBought).toString() + " < " + _minBaseAssetAmount.toString())
-
-        int newPositionSize = old_position_size + amountBaseAssetBought;
-        int totalLongOpenInterestAfter = db::openInterestLong + (newPositionSize > 0 ? openNotional : 0);
-        int totalShortOpenInterestAfter = db::openInterestShort + (newPositionSize < 0 ? openNotional : 0);
-
-        var (int remainMargin, int x1, int x2, int rolloverFee) = calcRemainMarginWithFundingPaymentAndRolloverFee(
-            old_position_size, 
-            old_position_margin, 
-            0,
-            old_position_last_updated_timestamp,
-            _amount
-        );
-
-        int newPositionMargin = remainMargin;
-        int newPositionOpenNotional = old_position_open_notional + openNotional;
-
-        int newTotalLongPositionSize = db::totalLongPositionSize + (newPositionSize > 0 ? abs(amountBaseAssetBought) : 0);
-        int newTotalShortPositionSize = db::totalShortPositionSize + (newPositionSize < 0 ? abs(amountBaseAssetBought) : 0);
-
-        db::totalLongPositionSize = newTotalLongPositionSize;
-        db::totalShortPositionSize = newTotalShortPositionSize;
-        db::openInterestLong = totalLongOpenInterestAfter;
-        db::openInterestShort = totalShortOpenInterestAfter;
-
-        db::quoteAssetReserve = quoteAssetReserveAfter;
-        db::baseAssetReserve = baseAssetReserveAfter;
-        db::balance += _amount;
-
-        cell new_position_ref = pack_position_data(newPositionSize, newPositionMargin, newPositionOpenNotional, 0, old_position_fee, now());
-
-
-        ;; quoteAstR, baseAstR, quoteAstW
-        ;; send message to update and unlock trader position;
-        var new_position_body = begin_cell()
-            .store_uint(op::update_position, 32)
-            .store_uint(db::quoteAssetReserve, 128)
-            .store_uint(db::quoteAssetWeight, 128)
-            .store_uint(db::baseAssetReserve, 128)
-            .store_ref(new_position_ref);
-
-        raw_reserve(1000000, 0);
-        send_simple_message(0, sender_addr, new_position_body, mode::carry_remaining_gas);
-
-        ;; TODO: other messages: Vault, excesses, etc.
-
-        ~dump(666);
-        
-        save_data();
+        handle::increase_position(in_msg_body, sender_addr, query_id);
         return ();
     }
 
+    if (op == op::add_margin) {
+        handle::add_margin(in_msg_body, sender_addr, query_id);
+        return ();
+    }
+    
     if (op == op::close_position) {
-        ;; _size: Int, _minQuoteAssetAmount: Int, _addToMargin: Boolean
-
-        ;; TODO: message layout
-        slice position_s = in_msg_body.preload_ref().begin_parse();
-        slice payload_s = in_msg_body;
-
-        slice _traderAddress = payload_s~load_msg_addr();
-        int _size = payload_s~load_uint(128);
-        int _minQuoteAssetAmount = payload_s~load_uint(128);
-        int _addToMargin = payload_s~load_uint(2);
-
-        var (
-            int oldPositionSize,
-            int oldPositionMargin,
-            int oldPositionOpenNotional,
-            int oldPositionLastUpdatedCPF,
-            int oldPositionFee,
-            int oldPositionTimestamp) = unpack_position_data(position_s);
-
-        load_data();
-
-        var (
-            int newPositionSize,
-            int newPositionMargin,
-            int newPositionOpenNotional,
-            int newPositionLstUpdCPF,
-            int positionBadDebt,
-            int realizedPnl,
-            int marginToTrader,
-            int quoteAssetReserveAfter,
-            int baseAssetReserveAfter,
-            int totalLongAfter,
-            int totalShortAfter,
-            int totalLongOpenInterestAfter,
-            int totalShortOpenInterestAfter,
-            int realizedFee,
-            int exchangedQuoteAssetAmount
-        ) = internalClosePosition(
-            oldPositionSize,
-            oldPositionMargin,
-            oldPositionOpenNotional,
-            oldPositionLastUpdatedCPF, 
-            oldPositionTimestamp,
-            _size,
-            oldPositionFee,
-            _minQuoteAssetAmount,
-            _addToMargin,
-            true,
-            false
-        );
+        handle::close_position(in_msg_body, sender_addr, query_id, msg_value);
+        return ();
+    }
 
 
+    if (op == op::remove_margin) {
+        handle::remove_margin(in_msg_body, sender_addr, query_id);
+        return ();
+    }
 
-        save_data();
+    if (op == op::pay_funding) {
+        handle::pay_funding(in_msg_body, sender_addr, query_id);
         return ();
     }
 
@@ -215,6 +80,6 @@
 }
 
 _ get_amm_data() method_id {
-    var (int balance, int oraclePrice, slice router_addr, cell exchange_settings, cell amm_state, _) = load_raw_data();
-    return (balance, oraclePrice, router_addr, exchange_settings, amm_state);
+    var (int balance, int oraclePrice, slice router_addr, cell exchange_settings, cell amm_state, cell funding_state, _) = load_raw_data();
+    return (balance, oraclePrice, router_addr, exchange_settings, amm_state, funding_state);
 }

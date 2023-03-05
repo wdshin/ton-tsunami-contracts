@@ -4,6 +4,11 @@ export const VammOpcodes = {
   increasePosition: 0xa55bf923,
   closePosition: 0x5cc03add,
   tempSetPrice: 0xe4f733dc,
+  updatePosition: 0x60dfc677,
+  addMargin: 0xb9e810e2,
+  removeMargin: 0xecded426,
+  payFunding: 0xb652c441,
+  withdraw: 0xcb03bfaf,
 };
 
 export type ExchangeSettings = {
@@ -32,12 +37,27 @@ export type AmmState = {
   openInterestShort: bigint;
 };
 
+export type FundingState = {
+  latestLongCumulativePremiumFraction: bigint;
+  latestShortCumulativePremiumFraction: bigint;
+  nextFundingBlockTimestamp: bigint;
+  fundingMode: FundingMode;
+  longFundingRate: bigint;
+  shortFundingRate: bigint;
+};
+
+export enum FundingMode {
+  ASYMMETRIC = 1,
+  SYMMETRIC = 2,
+}
+
 export type VammConfig = {
   balance: bigint;
   oraclePrice: bigint;
   routerAddr: Address;
   exchangeSettings: ExchangeSettings;
   ammState: AmmState;
+  fundingState: FundingState;
   positionCode: Cell;
 };
 
@@ -46,5 +66,4 @@ export type IncreasePositionBody = {
   leverage: bigint;
   minBaseAssetAmount: bigint;
   amount: bigint;
-  traderAddress: Address;
 };

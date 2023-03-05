@@ -12,7 +12,7 @@ export async function run(provider: NetworkProvider) {
       traderPositionWalletCode: await compile('TraderPositionWallet'),
       adminAddress: deployerAddress,
       whitelistedJettonWalletAddress: Address.parse(
-        'EQDfWhm26zr7-6k8uJSLZXv4BCD531eDzPoED34eTknFR6Kd' // any, will be overwritten
+        'EQB6tF3q5Jj_TRH2A9pj4xljoOibuaajCbY_ofR9HzX7zaHe' // any, will be overwritten
       ),
     },
     await compile('Router')
@@ -44,7 +44,7 @@ export async function run(provider: NetworkProvider) {
   }
 
   await openedContract.sendSetAmmData(provider.sender(), {
-    value: toNano('0.05'),
+    value: toNano('0.1'),
     balance: 10000,
     price: 2.5,
   });

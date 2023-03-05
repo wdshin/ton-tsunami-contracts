@@ -1,5 +1,11 @@
 #include "./packers.fc";
+#include "./storage.fc";
+#include "./op-codes.fc";
+
 #include "../shared/utils.fc";
+#include "../shared/messages.fc";
+#include "../shared/jetton-op-codes.fc";
+
 
 const int WORKCHAIN = 0;
 
@@ -23,4 +29,42 @@ const int WORKCHAIN = 0;
         .end_cell();
     
   return (state_init, get_serialized_address(WORKCHAIN, cell_hash(state_init)));
+}
+
+() send_withdraw(int query_id, int amount, slice to, int value, int mode) impure inline {
+  var body = begin_cell()
+    .store_uint(op::transfer, 32)
+    .store_uint(query_id, 64)
+    .store_coins(amount)
+    .store_slice(to) ;; destination
+    .store_slice(to) ;; response_destination
+    .store_uint(0, 1)
+    .store_coins(0)
+    .store_uint(0, 1)
+    .end_cell();
+
+  send_simple_message_ref(value, ctx::whitelisted_jetton_wallet_address, body, mode);
+}
+
+() request_position(int inner_op, int query_id, slice payload_s, slice position_addr, cell position_state_init) impure inline {
+  var body = begin_cell()
+    .store_uint(op::provide_position, 32)
+    .store_uint(inner_op, 32)
+    .store_uint(query_id, 64)
+    .store_slice(payload_s)
+    .end_cell(); ;; TODO: pass builder instead of cell ? 
+  
+  send_message_with_stateinit(0, position_addr, position_state_init, body, mode::carry_remaining_gas);
+}
+
+() request_position_with_amount(int inner_op, int query_id, int amount, slice payload_s, slice position_addr, cell position_state_init) impure inline {
+  var body = begin_cell()
+    .store_uint(op::provide_position, 32)
+    .store_uint(inner_op, 32)
+    .store_uint(query_id, 64)
+    .store_coins(amount)
+    .store_slice(payload_s)
+    .end_cell(); ;; TODO: pass builder instead of cell ? 
+  
+  send_message_with_stateinit(0, position_addr, position_state_init, body, mode::carry_remaining_gas);
 }

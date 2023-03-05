@@ -1,3 +1,5 @@
+#include "../shared/messages.fc";
+
 #include "../trader_position_wallet/packers.fc";
 
 #include "./constants.fc";
@@ -10,14 +12,38 @@ int muld(int _x, int _y) inline {
   return muldivr(_x, _y, DECIMAL_UNIT);
 }
 
-
 cell pack_position_init_data(slice trader_addr, slice vamm_addr) {
   return begin_cell()
-          .store_slice(trader_addr)
           .store_slice(vamm_addr)
           .store_uint(0, 1) ;; is_busy
-          .store_ref(pack_position_data(0, 0, 0, 0, 0, 0))
+          .store_ref(pack_position_data(trader_addr, 0, 0, 0, 0, 0, 0))
           .end_cell();
+}
+
+() withdraw(slice trader_addr, int jetton_amount, int value, int mode) impure inline_ref {
+  var body = begin_cell()
+    .store_uint(op::withdraw, 32)
+    .store_uint(0, 64) ;; TODO: query_id
+    .store_coins(jetton_amount)
+    .store_slice(trader_addr);
+
+  send_simple_message(value, db::router_addr, body, mode);
+}
+
+_ update_position(slice trader_addr, slice sender_addr, int newPositionSize, int newPositionMargin, int newPositionOpenNotional, int newPositionLastUpdatedCPF, int newPositionFee, int newTimestamp) impure inline_ref {
+  int storage_ton = 100000000; ;; 0.1
+  raw_reserve(storage_ton, 0);
+  cell new_position_ref = pack_position_data(trader_addr, newPositionSize, newPositionMargin, newPositionOpenNotional, newPositionLastUpdatedCPF, newPositionFee, newTimestamp);
+  ;; quoteAstR, baseAstR, quoteAstW
+  ;; send message to update and unlock trader position;
+  var new_position_body = begin_cell()
+    .store_uint(op::update_position, 32)
+    .store_uint(db::quoteAssetReserve, 128)
+    .store_uint(db::quoteAssetWeight, 128)
+    .store_uint(db::baseAssetReserve, 128)
+    .store_ref(new_position_ref);
+
+  send_simple_message(0, sender_addr, new_position_body, mode::carry_all_balance);
 }
 
 cell calculate_position_wallet_state_init(cell jetton_wallet_code, slice trader_addr, slice vamm_addr) inline {
@@ -29,8 +55,23 @@ cell calculate_position_wallet_state_init(cell jetton_wallet_code, slice trader_
           .end_cell();
 }
 
+int requireOpenPosition(slice position_s) inline {
+  return position_s.preload_int(128) != 0;
+}
+
+int calcRolloverFee(int _oldPositionMargin, int _oldPositionLastUpdatedTimestamp) inline {
+  int positionMinutes = ((now() - _oldPositionLastUpdatedTimestamp) / 60) * DECIMAL_UNIT;
+  return divd(_oldPositionMargin.muld(positionMinutes).muld(db::rolloverFee), MINUTES_IN_YEAR);
+}
+
+int latestCumulativePremiumFraction(int _positionSize) inline {
+  return _positionSize > 0 ? db::latestLongCumulativePremiumFraction : db::latestShortCumulativePremiumFraction;
+}
+
 
 int requireMoreMarginRatio(int _marginRatio, int _baseMarginRatio, int _largerThanOrEqualTo) inline {
+  ~dump(_marginRatio);
+  ~dump(_baseMarginRatio);
   int remainingMarginRatio = _marginRatio - _baseMarginRatio;
   if (_largerThanOrEqualTo & (remainingMarginRatio < 0)) {
     return false;
@@ -122,23 +163,23 @@ _ swapInput(int _isAdd, int _quoteAssetAmount) inline_ref {
   -}
 }
 
-;; ;; Computes position remaining margin with regards fof funding payment, rollover fee
-;; ;; and optionally applying a marginDelta - PnL or new margin (in case of position increase)
+;; Computes position remaining margin with regards fof funding payment, rollover fee
+;; and optionally applying a marginDelta - PnL or new margin (in case of position increase)
 _ calcRemainMarginWithFundingPaymentAndRolloverFee(
   int _oldPositionSize, 
   int _oldPositionMargin, 
   int _oldPositionCumulativePremiumFraction,
   int _oldPositionLastUpdatedTimestamp,
   int _marginDelta
-) inline_ref {
-  int fundingPayment = 0;
-  ;; if (_oldPositionSize != 0) {
-  ;;   int _latestCumulativePremiumFraction = latestCumulativePremiumFraction(_oldPositionSize);
-  ;;   fundingPayment = muld((_latestCumulativePremiumFraction - _oldPositionCumulativePremiumFraction), _oldPositionSize);
-  ;; }
+) inline {
+  int fundingPayment = (_oldPositionSize != 0) ? muld((latestCumulativePremiumFraction(_oldPositionSize) - _oldPositionCumulativePremiumFraction), _oldPositionSize) : 0;
 
-  ;; int rolloverFee = calcRolloverFee(_oldPositionMargin, _oldPositionLastUpdatedTimestamp);
-  int rolloverFee = 0;
+  int rolloverFee = calcRolloverFee(_oldPositionMargin, _oldPositionLastUpdatedTimestamp);
+  ~dump(90911);
+  ~dump(rolloverFee);
+  ~dump(_oldPositionMargin);
+  ~dump(_oldPositionLastUpdatedTimestamp);
+  ~dump(db::rolloverFee);
   int signedMargin = _marginDelta - rolloverFee - fundingPayment + _oldPositionMargin;
   var (int remainMargin, int badDebt) = signedMargin < 0 ? (0, abs(signedMargin)) : (abs(signedMargin), 0);
 
@@ -159,7 +200,7 @@ int getQuoteAssetWeight(
 }
 
 _ getSyncTerminalPrice(int _terminalPrice, int _qtAstR, int _bsAstR) inline {
-  int _positionSize = db::totalPositionSize;
+  int _positionSize = db::totalLongPositionSize - db::totalShortPositionSize;
   if (_positionSize == 0) {
     int newQtAstW = divd(_terminalPrice.muld(_bsAstR), _qtAstR);
     return (newQtAstW);
@@ -186,22 +227,22 @@ _ swapOutputWithReserves(
   ;; TODO: handle _baseAssetAmount == 0
   ;;  throw("Invalid base asset amount") 
 
-    int k = muld(_quoteAssetReserve, _baseAssetReserve);
-    int baseAssetPoolAmountAfter = _isAdd ? _baseAssetReserve + _baseAssetAmount : _baseAssetReserve - _baseAssetAmount;
+  int k = muld(_quoteAssetReserve, _baseAssetReserve);
+  int baseAssetPoolAmountAfter = _isAdd ? _baseAssetReserve + _baseAssetAmount : _baseAssetReserve - _baseAssetAmount;
 
-    int quoteAssetAfter = divd(k, baseAssetPoolAmountAfter);
-    int quoteAssetDelta = abs(quoteAssetAfter - _quoteAssetReserve);
-    int quoteAssetSold = quoteAssetDelta.muld(_quoteAssetWeight);
+  int quoteAssetAfter = divd(k, baseAssetPoolAmountAfter);
+  int quoteAssetDelta = abs(quoteAssetAfter - _quoteAssetReserve);
+  int quoteAssetSold = quoteAssetDelta.muld(_quoteAssetWeight);
 
-    ;; int maxPriceImpactValue = maxPriceImpact();
+  ;; int maxPriceImpactValue = maxPriceImpact();
 
 
-    var (
-      int quoteAssetReserveAfter1,
-      int baseAssetReserveAfter1
-    ) = updateReserve(~ _isAdd, quoteAssetDelta, _baseAssetAmount);
+  var (
+    int quoteAssetReserveAfter1,
+    int baseAssetReserveAfter1
+  ) = updateReserve(~ _isAdd, quoteAssetDelta, _baseAssetAmount);
 
-    {-
+  {-
     
     int marketPrice = divd(quoteAssetSold, _baseAssetAmount)
     int priceDiff = abs(priceBefore - marketPrice)
@@ -227,14 +268,14 @@ _ swapOutputWithReserves(
       )
     }
     -}
-    return (
-      quoteAssetSold,
-        quoteAssetReserveAfter1,
-        baseAssetReserveAfter1,
-        db::totalLongPositionSize - (_isAdd ? abs(_baseAssetAmount) : 0),
-        db::totalShortPositionSize - (~ _isAdd ? abs(_baseAssetAmount) : 0),
-        0
-    );
+  return (
+    quoteAssetSold,
+    quoteAssetReserveAfter1,
+    baseAssetReserveAfter1,
+    db::totalLongPositionSize - (_isAdd ? abs(_baseAssetAmount) : 0),
+    db::totalShortPositionSize - (~ _isAdd ? abs(_baseAssetAmount) : 0),
+    0
+  );
 }
 
 
@@ -266,7 +307,7 @@ _ getPositionAdjustedOpenNotional(
   int isShort = _positionSize < 0;
   int positionNotional = 0;
   if (_option == PNL_OPTION_SPOT) {
-    var (positionNotional, _, _, _, _, _) = swapOutputWithReserves(
+    (positionNotional, _, _, _, _, _) = swapOutputWithReserves(
       ~ isShort,
       positionSizeAbs,
       false,
@@ -283,36 +324,36 @@ _ getPositionAdjustedOpenNotional(
 }
 
 _ getPositionNotionalAndUnrealizedPnlByValues(
-    int _positionSize, 
-    int _positionOpenNotional, 
-    int _quoteAssetReserve,
-    int _quoteAssetWeight,
-    int _baseAssetReserve,
-    int _baseAssetWeight,
-    int _option
-  ) inline_ref {
-    ;; TODO: check _positionSize == 0
-    ;; throw("Invalid position size")
+  int _positionSize, 
+  int _positionOpenNotional, 
+  int _quoteAssetReserve,
+  int _quoteAssetWeight,
+  int _baseAssetReserve,
+  int _baseAssetWeight,
+  int _option
+) inline_ref {
+  ;; TODO: check _positionSize == 0
+  ;; throw("Invalid position size")
 
-      int isShort = _positionSize < 0;
-      int positionNotional = getPositionAdjustedOpenNotional(
-        _positionSize,
-        _option,
-        _quoteAssetReserve,
-        _quoteAssetWeight,
-        _baseAssetReserve,
-        _baseAssetWeight
-      );
+  int isShort = _positionSize < 0;
+  int positionNotional = getPositionAdjustedOpenNotional(
+    _positionSize,
+    _option,
+    _quoteAssetReserve,
+    _quoteAssetWeight,
+    _baseAssetReserve,
+    _baseAssetWeight
+  );
 
-      int unrealizedPnl = isShort ? _positionOpenNotional - positionNotional : positionNotional - _positionOpenNotional;
-      return (
-        positionNotional,
-        unrealizedPnl
-      );
+  int unrealizedPnl = isShort ? (_positionOpenNotional - positionNotional) : (positionNotional - _positionOpenNotional);
+  return (
+    positionNotional,
+    unrealizedPnl
+  );
 }
 
 int calcMarginRatio(int _remainMargin, int _badDebt, int _positionNotional) inline {
-  return divd(_remainMargin - _badDebt, _positionNotional);
+  return divd((_remainMargin - _badDebt), _positionNotional);
 }
 
 _ getMarginRatioByOption(
@@ -324,15 +365,16 @@ _ getMarginRatioByOption(
   int _option
 ) inline {
 
-    var (int positionNotional, int unrealizedPnl) = getPositionNotionalAndUnrealizedPnlByValues(_positionSize, _positionOpenNotional, db::quoteAssetReserve, db::quoteAssetWeight, db::baseAssetReserve, DECIMAL_UNIT, _option);
-    var (int remainMargin, int badDebt, _, _) = calcRemainMarginWithFundingPaymentAndRolloverFee(
-        _positionSize,
-        _positionMargin,
-        _positionLastUpdatedCPF,
-        _positionTimestamp,
-        unrealizedPnl
-    );
-    return calcMarginRatio(remainMargin, badDebt, positionNotional);
+  var (int positionNotional, int unrealizedPnl) = getPositionNotionalAndUnrealizedPnlByValues(_positionSize, _positionOpenNotional, db::quoteAssetReserve, db::quoteAssetWeight, db::baseAssetReserve, DECIMAL_UNIT, _option);
+  var (int remainMargin, int badDebt, _, _) = calcRemainMarginWithFundingPaymentAndRolloverFee(
+    _positionSize,
+    _positionMargin,
+    _positionLastUpdatedCPF,
+    _positionTimestamp,
+    unrealizedPnl
+  );
+
+  return calcMarginRatio(remainMargin, badDebt, positionNotional);
 }
 
 _ internalClosePosition(
@@ -353,39 +395,40 @@ _ internalClosePosition(
   ;; TODO: handle this
   ;; if (~ ((_size <= absOldPositionSize) & (_size > 0))) {
   ;; }
-    int isPartialClose = _size < absOldPositionSize;
-    ;; Swap _size amount of position for exchangedQuoteAssetAmount of quote asset
-    var (
-      int exchangedQuoteAssetAmount,
-      int quoteAssetReserveAfter, 
-      int baseAssetReserveAfter,
-      int totalPositionSizeAfter,
-      _,
-      _
-    ) = swapOutput(
-      oldPositionSize > 0,
-      _size,
-      _checkMaxPriceImpact);
+  int isPartialClose = _size < absOldPositionSize;
+  ;; Swap _size amount of position for exchangedQuoteAssetAmount of quote asset
+  var (
+    int exchangedQuoteAssetAmount,
+    int quoteAssetReserveAfter, 
+    int baseAssetReserveAfter,
+    int totalPositionSizeAfter,
+    _,
+    _
+  ) = swapOutput(
+    oldPositionSize > 0,
+    _size,
+    _checkMaxPriceImpact);
 
-    ;; exchangedPositionSize should always have a sign opposite to position
-    ;; if position is short (-500) then +100 will decrease it (make it -400)
-    ;; if position is long (500) then -100 will decrease it (make it 400)
-    int exchangedPositionSize = oldPositionSize > 0 ? (- _size) : _size;
+  ;; exchangedPositionSize should always have a sign opposite to position
+  ;; if position is short (-500) then +100 will decrease it (make it -400)
+  ;; if position is long (500) then -100 will decrease it (make it 400)
+  int exchangedPositionSize = oldPositionSize > 0 ? (- _size) : _size;
 
-    ;; Compute actual notional value of position (notional value + pnl - funding)
-    ;; and use it as a base to compute fee
-    var (
-      int oldPositionNotional, 
-      int unrealizedPnl
-    ) = getPositionNotionalAndUnrealizedPnlByValues(
-      oldPositionSize,
-      oldPositionOpenNotional,
-      db::quoteAssetReserve,
-      db::quoteAssetWeight,
-      db::baseAssetReserve,
-      DECIMAL_UNIT,
-      PNL_OPTION_SPOT
-    );
+  ;; Compute actual notional value of position (notional value + pnl - funding)
+  ;; and use it as a base to compute fee
+  var (
+    int oldPositionNotional, 
+    int unrealizedPnl
+  ) = getPositionNotionalAndUnrealizedPnlByValues(
+    oldPositionSize,
+    oldPositionOpenNotional,
+    db::quoteAssetReserve,
+    db::quoteAssetWeight,
+    db::baseAssetReserve,
+    DECIMAL_UNIT,
+    PNL_OPTION_SPOT
+  );
+
 
     ;; Compute how much (in %) of position we are closing
     int realizedRatio = divd(abs(exchangedPositionSize), absOldPositionSize);
@@ -437,19 +480,21 @@ _ internalClosePosition(
    
     (int newPositionOpenNotional, int newPositionLstUpdCPF) = newPositionSize == 0 ? 
       (0, 0) : 
-      (abs(remainOpenNotional), 0);
+      (abs(remainOpenNotional), latestCumulativePremiumFraction(newPositionSize));
 
     ;; Compute notional delta, that will be help us reduce it from cumulative notional.
     ;; Note, that cumulative notional is always added and subtracted without regards for PnL
     int openNotionalDelta = oldPositionOpenNotional - newPositionOpenNotional;
 
+
     ;; When partially closing a position AND removing part of margin to send to trader, position
     ;; should keep EXACTLY the margin ration it is currently on.
     int marginRatio = getMarginRatioByOption(oldPositionSize, oldPositionMargin, oldPositionOpenNotional, oldPositionLastUpdatedCPF, oldPositionTimestamp, PNL_OPTION_SPOT);
+ 
     int newPositionMarginWithSameRatio = oldPositionSize > 0 ?
       (muld(newPositionOpenNotional + unrealizedPnlAfter, marginRatio) - unrealizedPnlAfter)
       : (muld(newPositionOpenNotional - unrealizedPnlAfter, marginRatio) - unrealizedPnlAfter);
-    
+
     ;; This is how much margin we can return back to the trader, while position is closed while keeping MR the same
    
     int marginToTraderRaw = remainMarginBefore - (newPositionMarginWithSameRatio + unrealizedPnlAfter) - realizedFee;
@@ -495,6 +540,7 @@ _ internalClosePosition(
   ;; } else {
   ;;   throw("Invalid internalClosePosition params: invalid position size")
   ;; }
+
   return (
         newPositionSize,
         newPositionMargin,
@@ -505,8 +551,6 @@ _ internalClosePosition(
         (_addToMargin & isPartialClose) ? 0 : marginToTrader,
         quoteAssetReserveAfter,
         baseAssetReserveAfter,
-        ;; totalPositionSizeAfter,
-        ;; openInterestNotional() - openNotionalDelta,
         db::totalLongPositionSize - (isLongPosition ? abs(exchangedPositionSize) : 0),
         db::totalShortPositionSize - (~ isLongPosition ? abs(exchangedPositionSize) : 0),
         db::openInterestLong - (isLongPosition ? openNotionalDelta : 0),
@@ -514,4 +558,72 @@ _ internalClosePosition(
         realizedFee,
         exchangedQuoteAssetAmount
   );
+}
+
+(int, int) distributeFee(int _feeAmount) inline {
+  int feeToStakers = muld(_feeAmount, db::feeToStakersPercent);
+  int feeToVault = _feeAmount - feeToStakers;
+
+  return (feeToStakers, feeToVault);
+}
+
+int getSpotPrice() inline {
+  int _quoteAssetReserve = db::quoteAssetReserve;
+  int _baseAssetReserve = db::baseAssetReserve;
+  int _qtAstW = db::quoteAssetWeight;
+  int _bsAstW = db::baseAssetWeight;
+
+  return divd(_quoteAssetReserve.muld(_qtAstW), _baseAssetReserve.muld(_bsAstW));
+}
+
+(int, int, int) getFunding() inline {
+  int underlyingPrice = db::oraclePrice;
+  int spotPrice = getSpotPrice();
+  int premium = spotPrice - underlyingPrice;
+  
+  ;; | isMarketClosed()
+  if ((db::totalShortPositionSize == 0) | (db::totalLongPositionSize == 0)) {
+    return (0, 0, 0);
+  } 
+  if (premium < 0) {
+    ;; underlyingPrice > spotPrice, need to push spotPrice UP, short pays the longs
+    ;; how much to take from shorts this funding period
+    int shortPremiumFraction = divd(muld(premium, fundingPeriodDecimal), ONE_DAY);
+
+    if (db::fundingMode == FM::FUNDING_ASYMMETRIC)  {
+      int longPremiumFraction = divd(muld(shortPremiumFraction, db::totalShortPositionSize), db::totalLongPositionSize);
+
+      return (shortPremiumFraction, longPremiumFraction, 0);
+    } else {
+      int shortTotalPremiumFraction = abs(muld(shortPremiumFraction, db::totalShortPositionSize));
+
+      ;; how much longs will get (total)
+      int longTotalPremiumFraction = abs(muld(shortPremiumFraction, db::totalLongPositionSize));
+
+      ;; how much LP's will get 
+      int premiumToVault = shortTotalPremiumFraction - longTotalPremiumFraction;
+
+      return (shortPremiumFraction, shortPremiumFraction, premiumToVault);
+    }
+  } else {
+    ;; underlyingPrice < spotPrice, need to push spotPrice DOWN, longs pays the shorts
+    ;; how much to take from longs this funding period
+    int longPremiumFraction = divd(muld(premium, fundingPeriodDecimal), ONE_DAY);
+
+    if (db::fundingMode == FM::FUNDING_ASYMMETRIC) {
+      int shortPremiumFraction = divd(muld(longPremiumFraction, db::totalLongPositionSize), db::totalShortPositionSize);
+
+      return (shortPremiumFraction, longPremiumFraction, 0);
+    } else {
+      int longTotalPremiumFraction = abs(muld(longPremiumFraction, db::totalLongPositionSize));
+
+      ;; how much short will get (total)
+      int shortTotalPremiumFraction = abs(muld(longPremiumFraction, db::totalShortPositionSize));
+        
+      ;; how much LP's will get 
+      int premiumToVault = longTotalPremiumFraction - shortTotalPremiumFraction;
+
+      return (longPremiumFraction, longPremiumFraction, premiumToVault);
+    }
+  }
 }

@@ -1,8 +1,11 @@
 #include "./packers.fc";
 
 global int db::balance;
-global int db::fee;                                       ;; Exchange fee. Default is 1%. 1/2 goes to stakers, 1/2 goes to insurance fund
+global int db::oraclePrice; 
 global slice db::router_addr;
+
+;; exchange_settings
+global int db::fee;                                       ;; Exchange fee. Default is 1%. 1/2 goes to stakers, 1/2 goes to insurance fund
 global int db::rolloverFee;                               ;; Rollover fee per minute. Default 35% per year.
 global int db::fundingPeriod;                             ;; Funding period. By default funding is paid once per hour
 global int db::initMarginRatio;                           ;; Initial margin ratio. Controls how much leverage can be applied when position is created
@@ -15,8 +18,8 @@ global int db::maxPriceSpread;                            ;; max spread between 
 global int db::maxOpenNotional;                           ;; max open notional in market
 global int db::feeToStakersPercent;                       ;; percent of fee to stakers (rest goes to vault) 
 global int db::maxOracleDelay;                            ;; k_maxOracleDelay
-global int db::totalPositionSize;
 
+;; amm state
 global int db::quoteAssetReserve;        ;; Quote Asset Reserve (AMM)
 global int db::baseAssetReserve;         ;; Base Asset Reserve (AMM)
 global int db::quoteAssetWeight;         ;; Quote Asset Weight
@@ -25,10 +28,17 @@ global int db::totalLongPositionSize;        ;; Total LONG trader position size 
 global int db::totalShortPositionSize;         ;; Total SHORT trader position size (in Base asset)
 global int db::openInterestShort;        ;; Open Interest Notional (short)
 global int db::openInterestLong;         ;; Open Interest Notional (long)
-global int db::oraclePrice; 
+
+;; TODO: data layout
+;; funding data
+global int db::latestLongCumulativePremiumFraction; ;; 128
+global int db::latestShortCumulativePremiumFraction; ;; 128
+global int db::nextFundingBlockTimestamp; ;; 32
+global int db::fundingMode; ;; 2 ;; TODO: data layout
+global int db::longFundingRate; ;; 32
+global int db::shortFundingRate; ;; 32
 
 global cell db::trader_position_wallet_code;
-
 
 _ load_raw_data() impure inline {
   slice ds = get_data().begin_parse();
@@ -36,6 +46,7 @@ _ load_raw_data() impure inline {
     ds~load_coins(),
     ds~load_uint(128),
     ds~load_msg_addr(),
+    ds~load_ref(),
     ds~load_ref(),
     ds~load_ref(),
     ds.preload_ref()
@@ -73,9 +84,18 @@ _ load_raw_data() impure inline {
     db::openInterestShort,
     db::openInterestLong
   ) = unpack_amm_state(ds~load_ref().begin_parse());
-  db::trader_position_wallet_code = ds.preload_ref();
 
-  db::totalPositionSize = db::totalLongPositionSize - db::totalShortPositionSize;
+  var (
+    db::latestLongCumulativePremiumFraction,
+    db::latestShortCumulativePremiumFraction,
+    db::nextFundingBlockTimestamp,
+    db::fundingMode,
+    db::longFundingRate,
+    db::shortFundingRate
+  ) = unpack_funding_state(ds~load_ref().begin_parse());
+
+  ;; 32 global var max, so should return this:
+  db::trader_position_wallet_code = ds.preload_ref();
 
   return ();
 }
@@ -109,6 +129,14 @@ _ load_raw_data() impure inline {
         db::totalShortPositionSize,
         db::openInterestShort,
         db::openInterestLong
+      ))
+      .store_ref(pack_funding_state(
+        db::latestLongCumulativePremiumFraction,
+        db::latestShortCumulativePremiumFraction,
+        db::nextFundingBlockTimestamp,
+        db::fundingMode,
+        db::longFundingRate,
+        db::shortFundingRate
       ))
       .store_ref(db::trader_position_wallet_code)
       .end_cell()

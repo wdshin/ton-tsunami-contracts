@@ -4,3 +4,5 @@ const op::temp_set_amm_data = "op::temp_set_amm_data"c;
 const op::update_position = "op::update_position"c;
 const op::temp_set_whitelisted_address = "op::temp_set_whitelisted_address"c;
 const op::temp_set_admin_address = "op::temp_set_admin_address"c;
+const op::withdraw = "op::withdraw"c;
+const op::provide_position = "op::provide_position"c;

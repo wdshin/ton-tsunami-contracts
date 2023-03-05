@@ -6,7 +6,7 @@ import { JettonWallet } from '../wrappers/JettonWallet/JettonWallet';
 
 export async function run(provider: NetworkProvider) {
   const router = Router.createFromAddress(
-    Address.parse('EQB3ZM4hbAaf3yh12WMEIT1QdPePiDn0Eo9zUV2AKK2-WWmc')
+    Address.parse('EQCmpTLI9YRSm7yLhDYvA5Lxjaijj7qz4vE0WxPcE989N034')
   );
 
   const openedContract = provider.open(router);

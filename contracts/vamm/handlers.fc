@@ -1,0 +1,358 @@
+#include "../shared/stdlib.fc";
+
+#include "./constants.fc";
+#include "./storage.fc";
+#include "./utils.fc";
+
+() handle::increase_position(slice in_msg_body, slice sender_addr, int query_id) impure inline {
+  load_data();
+  slice position_s = in_msg_body.preload_ref().begin_parse();
+  slice payload_s = in_msg_body;
+
+  ;; TODO: msg layout
+  int raw_amount = payload_s~load_coins();
+  int direction = payload_s~load_uint(2);
+  int leverage = payload_s~load_uint(32);
+  int min_base_asset_amount = payload_s~load_uint(128);
+
+  ;; Check...
+  ;; TODO: check asset on router
+  if ((direction != direction::long) & (direction != direction::short) 
+        | ~ requireMoreMarginRatio(divd(DECIMAL_UNIT, leverage), db::initMarginRatio, true)
+  ) {
+    ~dump(401);
+    ;; TODO: cant throw, revert amount back 
+    return ();
+  }
+  ;; TODO: fee calculations    
+
+  int _amount = raw_amount.divd(muld(db::fee, leverage) + DECIMAL_UNIT);
+
+  var (slice trader_addr,
+    int old_position_size,
+    int old_position_margin,
+    int old_position_open_notional,
+    int old_position_last_updated_cumulative_premium,
+    int old_position_fee,
+    int old_position_last_updated_timestamp) = unpack_position_data(position_s);
+
+
+  int isNewPosition = old_position_size == 0;
+  int isSameDirection = old_position_size > 0 ? direction == direction::long : direction == direction::short;
+  int expandExisting = (~ isNewPosition) & isSameDirection;
+  int isAdd = direction == direction::long;
+
+
+  if (~ (isNewPosition | expandExisting)) {
+    ~dump(402);
+    ;; TODO: cant throw, revert amount back 
+    return ();
+  }
+  int openNotional = muld(_amount, leverage);
+  var ( 
+    int amountBaseAssetBought,
+    int quoteAssetReserveAfter, 
+    int baseAssetReserveAfter
+  ) = swapInput(isAdd, openNotional);
+
+  ;; TODO: check min base amount 
+  ;; throw("Limit error: " + abs(amountBaseAssetBought).toString() + " < " + _minBaseAssetAmount.toString())
+
+  int newPositionSize = old_position_size + amountBaseAssetBought;
+  int totalLongOpenInterestAfter = db::openInterestLong + (newPositionSize > 0 ? openNotional : 0);
+  int totalShortOpenInterestAfter = db::openInterestShort + (newPositionSize < 0 ? openNotional : 0);
+
+  var (int remainMargin, int x1, int x2, int rolloverFee) = calcRemainMarginWithFundingPaymentAndRolloverFee(
+    old_position_size, 
+    old_position_margin, 
+    old_position_last_updated_cumulative_premium,
+    old_position_last_updated_timestamp,
+    _amount
+  );
+
+  int newPositionMargin = remainMargin;
+  int newPositionOpenNotional = old_position_open_notional + openNotional;
+        
+  int newPositionLatestCPF = latestCumulativePremiumFraction(newPositionSize);
+
+  int newTotalLongPositionSize = db::totalLongPositionSize + (newPositionSize > 0 ? abs(amountBaseAssetBought) : 0);
+  int newTotalShortPositionSize = db::totalShortPositionSize + (newPositionSize < 0 ? abs(amountBaseAssetBought) : 0);
+
+  db::totalLongPositionSize = newTotalLongPositionSize;
+  db::totalShortPositionSize = newTotalShortPositionSize;
+  db::openInterestLong = totalLongOpenInterestAfter;
+  db::openInterestShort = totalShortOpenInterestAfter;
+
+  db::quoteAssetReserve = quoteAssetReserveAfter;
+  db::baseAssetReserve = baseAssetReserveAfter;
+  db::balance += _amount;
+
+  update_position(trader_addr, sender_addr, newPositionSize, newPositionMargin, newPositionOpenNotional, newPositionLatestCPF, old_position_fee, now());
+
+  ;; TODO: need this?
+  ;; raw_reserve(100000, 0);
+
+  ;; TODO: other messages: Vault, excesses, etc.
+
+  ~dump(666);
+        
+  save_data();
+}
+
+() handle::close_position(slice in_msg_body, slice sender_addr, int query_id, int msg_value) impure inline {
+  slice position_s = in_msg_body.preload_ref().begin_parse();
+  slice payload_s = in_msg_body;
+
+  int _size = payload_s~load_uint(128);
+  int _minQuoteAssetAmount = payload_s~load_uint(128);
+  int _addToMargin = payload_s~load_uint(1);
+
+  var (slice trader_addr,
+    int oldPositionSize,
+    int oldPositionMargin,
+    int oldPositionOpenNotional,
+    int oldPositionLastUpdatedCPF,
+    int oldPositionFee,
+    int oldPositionTimestamp) = unpack_position_data(position_s);
+
+  load_data();
+
+  var (
+    int newPositionSize,
+    int newPositionMargin,
+    int newPositionOpenNotional,
+    int newPositionLstUpdCPF,
+    int positionBadDebt,
+    int realizedPnl,
+    int marginToTrader,
+    int quoteAssetReserveAfter,
+    int baseAssetReserveAfter,
+    int totalLongAfter,
+    int totalShortAfter,
+    int totalLongOpenInterestAfter,
+    int totalShortOpenInterestAfter,
+    int realizedFee,
+    int exchangedQuoteAssetAmount
+  ) = internalClosePosition(
+    oldPositionSize,
+    oldPositionMargin,
+    oldPositionOpenNotional,
+    oldPositionLastUpdatedCPF, 
+    oldPositionTimestamp,
+    _size,
+    oldPositionFee,
+    _minQuoteAssetAmount,
+    _addToMargin,
+    true,
+    false
+  );
+
+  if ((positionBadDebt > 0) | (oldPositionTimestamp >= now())) {
+    ;; TODO: throw exception
+    ~dump(404);
+    return ();
+  }
+        
+  int withdrawAmount = marginToTrader + realizedFee;
+  int ammBalance = db::balance - withdrawAmount;
+      
+  ;;   strict unstake = invoke(
+  ;;     vaultAddress(),
+  ;;     "withdrawLocked",
+  ;;     [withdrawAmount],
+  ;;     []
+  ;;   )
+
+  ;; var (int feeToStakers, int feeToVault) = distributeFee(realizedFee);
+
+  ;;       strict depositVault = invoke(
+  ;;     vaultAddress(),
+  ;;     "addFree",
+  ;;     [],
+  ;;     [AttachedPayment(quoteAsset(), feeToVault)]
+  ;;   )
+
+  ~dump(888);
+  ~dump(marginToTrader);
+  
+  if (marginToTrader > 0) {
+    ~dump(999);
+    ;; TODO: calculate value and mode
+    ;; 0.1ton
+    withdraw(trader_addr, marginToTrader, 100000000, 0);
+  }
+  ;; TODO: calculate value and mode
+  update_position(newPositionSize != 0 ? (trader_addr, sender_addr, newPositionSize, newPositionMargin, newPositionOpenNotional, newPositionLstUpdCPF, oldPositionFee, now()) : (trader_addr, sender_addr, 0, 0, 0, 0, 0, 0));
+
+  ;; TODO: need this? 
+
+  db::quoteAssetReserve = quoteAssetReserveAfter;
+  db::baseAssetReserve = baseAssetReserveAfter;
+  db::totalLongPositionSize = totalLongAfter;
+  db::totalShortPositionSize = totalShortAfter;
+  db::openInterestLong = totalLongOpenInterestAfter;
+  db::openInterestShort = totalShortOpenInterestAfter;
+
+  int ammNewBalance = max(ammBalance, 0);
+  db::balance = ammNewBalance;
+
+  ;;   TODO: transfer fee here
+  ;;   transferFee(feeToStakers)
+  save_data();
+}
+
+() handle::add_margin(slice in_msg_body, slice sender_addr, int query_id) impure inline {
+  slice position_s = in_msg_body.preload_ref().begin_parse();
+
+  slice payload_s = in_msg_body;
+  int _amount = payload_s~load_coins();
+
+  if ( ~ requireOpenPosition(position_s)) {
+    ~dump(405);
+    ;; TODO: cant throw, revert amount back 
+    ;; throw("Invalid addMargin parameters")
+    return ();
+  }
+  load_data();
+
+  var (slice trader_addr,
+    int oldPositionSize,
+    int oldPositionMargin,
+    int oldPositionOpenNotional,
+    int oldPositionLastUpdatedCPF,
+    int oldPositionFee,
+    int oldPositionTimestamp) = unpack_position_data(position_s);
+
+  ;;     strict stake = invoke(
+  ;;   vaultAddress(),
+  ;;   "addLocked",
+  ;;   [],
+  ;;   [AttachedPayment(quoteAsset(), _amount)]
+  ;; )
+
+  int rolloverFee = calcRolloverFee(oldPositionMargin, oldPositionTimestamp);
+
+  if (rolloverFee > 0) {
+    ;; TODO: 
+    ;;         let (feeToStakers, feeToVault) = distributeFee(rolloverFee)
+
+    ;;   strict unstake = invoke(
+    ;;     vaultAddress(),
+    ;;     "withdrawLocked",
+    ;;     [feeToStakers],
+    ;;     []
+    ;;   )
+
+    ;;   strict lockBadDebt = invoke(
+    ;;     vaultAddress(),
+    ;;     "exchangeFreeAndLocked",
+    ;;     [-feeToVault], # Negative, because it is directed towards vault, not towards traders
+    ;;     []
+    ;;   )
+
+    ;;   transferFee(feeToStakers)
+  }
+
+  db::balance += (_amount - rolloverFee);
+
+  int newPositionMargin = oldPositionMargin - rolloverFee + _amount;
+  update_position(trader_addr, sender_addr, oldPositionSize, newPositionMargin, oldPositionOpenNotional, oldPositionLastUpdatedCPF, oldPositionFee, now());
+
+  ;; TODO: vault/fee actions here doTransferFeeToStakers
+  save_data();
+}
+
+() handle::remove_margin(slice in_msg_body, slice sender_addr, int query_id) impure inline {
+  slice position_s = in_msg_body.preload_ref().begin_parse();
+  slice payload_s = in_msg_body;
+  int _amount = payload_s~load_coins();
+
+  if (_amount <= 0 | ~ requireOpenPosition(position_s)) {
+    ;; TODO: throw exception
+  }
+
+  load_data();
+
+  var (slice trader_addr,
+    int oldPositionSize,
+    int oldPositionMargin,
+    int oldPositionOpenNotional,
+    int oldPositionLastUpdatedCPF,
+    int oldPositionFee,
+    int oldPositionTimestamp) = unpack_position_data(position_s);
+
+  var (int remainMargin, int badDebt, int fundingPayment, int rolloverFee) =
+        calcRemainMarginWithFundingPaymentAndRolloverFee(
+    oldPositionSize,
+    oldPositionMargin,
+    oldPositionLastUpdatedCPF,
+    oldPositionTimestamp,
+    - _amount
+  );
+
+  if (badDebt != 0)  {
+    ;;   throw("Invalid removed margin amount")
+  }
+  int marginRatio = calcMarginRatio(remainMargin, badDebt, oldPositionOpenNotional);
+
+  if (~ requireMoreMarginRatio(marginRatio, db::initMarginRatio, true))  {
+    ;; throw("Too much margin removed: " + marginRatio.toString() + " < " + initMarginRatio().toString())
+  } 
+
+  ;;    strict doTransferFeeToStakers = if (rolloverFee > 0) then {
+  ;;   strict lockBadDebt = invoke(
+  ;;     vaultAddress(),
+  ;;     "exchangeFreeAndLocked",
+  ;;     [-feeToVault], # Negative, because it is directed towards vault, not towards traders
+  ;;     []
+  ;;   )
+  ;;   transferFee(feeToStakers)
+
+  ;; strict unstake = invoke(
+  ;;   vaultAddress(),
+  ;;   "withdrawLocked",
+  ;;   [_amount + feeToStakers],
+  ;;   []
+  ;; )
+
+  update_position(trader_addr, sender_addr, oldPositionSize, remainMargin, oldPositionOpenNotional, latestCumulativePremiumFraction(oldPositionSize), oldPositionFee, now());
+
+  ;; TODO: withdraw here 
+  ;; withdraw(i.caller, _amount)
+
+  db::balance -= (_amount + rolloverFee);
+
+  ;; doTransferFeeToStakers
+
+  save_data();
+}
+
+() handle::pay_funding(slice in_msg_body, slice sender_addr, int query_id) impure inline {
+  load_data();
+  if (now() < db::nextFundingBlockTimestamp) {
+    ;; TODO: throw exception
+    return ();
+  }
+
+  var (int shortPremiumFraction, int longPremiumFraction, int premiumToVault) = getFunding();
+
+  ;;         strict doPayFundingToVault = if (premiumToVault > 0) then {
+  ;;   strict doPayFundingToVault = invoke(
+  ;;     vaultAddress(),
+  ;;     "exchangeFreeAndLocked",
+  ;;     [-premiumToVault], # Negative, because it is directed towards vault, not towards traders
+  ;;     []
+  ;;   )
+  ;;   []
+  ;; } else {
+  ;;   []
+  ;; }
+
+  db::nextFundingBlockTimestamp += fundingPeriodRaw * SECONDS;
+  db::latestLongCumulativePremiumFraction += longPremiumFraction;
+  db::latestShortCumulativePremiumFraction += shortPremiumFraction;
+  db::longFundingRate = divd(longPremiumFraction, db::oraclePrice);
+  db::shortFundingRate = divd(shortPremiumFraction, db::oraclePrice);
+
+  save_data();
+}

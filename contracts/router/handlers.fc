@@ -1,0 +1,71 @@
+#include "../shared/stdlib.fc";
+#include "../shared/messages.fc";
+#include "../vamm/op-codes.fc";
+
+#include "./storage.fc";
+#include "./errors.fc";
+#include "./utils.fc";
+
+() handle::transfer_notification(slice in_msg_body, slice sender_addr, int query_id) impure inline {
+  var (int jetton_amount, slice from_addr, cell payload_ref) = (in_msg_body~load_coins(), in_msg_body~load_msg_addr(), in_msg_body.preload_ref());
+
+  load_data();
+
+  ;; Check if sender_addr is whitelisted token...
+  throw_unless(error::invalid_jetton, equal_slices(sender_addr, ctx::whitelisted_jetton_wallet_address));
+
+  slice payload_s = payload_ref.begin_parse();
+  int payload_op = payload_s~load_uint(32);
+        
+  if ((payload_op == op::increase_position) | (payload_op == op::add_margin)) {
+    throw_unless(error::invalid_jetton_amount, jetton_amount > 0);
+            
+    ;; TODO: add index to payload_ref to work vith different vAMMs
+
+    ;; TODO: get vamm_addr from payload to reduce gas consumption
+    var (_, slice vamm_addr) = get_vamm_state_init_and_address();
+    var (cell position_state_init, slice trader_position_addr) = get_position_state_init_and_address(vamm_addr, from_addr);
+
+    request_position_with_amount(payload_op, query_id, jetton_amount, payload_s, trader_position_addr, position_state_init);
+    return ();
+  }
+
+  throw(0xffff);
+}
+
+() handle::withdraw(slice in_msg_body, slice sender_addr, int query_id) impure inline {
+  load_data();
+  var (_, slice vamm_addr) = get_vamm_state_init_and_address();
+  throw_unless(error::not_an_amm, equal_slices(sender_addr, vamm_addr));
+
+  var (int jetton_amount, slice to_addr) = (in_msg_body~load_coins(), in_msg_body~load_msg_addr());
+
+  send_withdraw(query_id, jetton_amount, to_addr, 0, mode::carry_remaining_gas);
+}
+
+() handle::close_position(slice in_msg_body, slice sender_addr, int query_id) impure inline {
+  load_data();
+  var (_, slice vamm_addr) = get_vamm_state_init_and_address();
+  var (cell position_state_init, slice trader_position_addr) = get_position_state_init_and_address(vamm_addr, sender_addr);
+  request_position(op::close_position, query_id, in_msg_body, trader_position_addr, position_state_init);
+}
+
+() handle::remove_margin(slice in_msg_body, slice sender_addr, int query_id) impure inline {
+  load_data();
+  var (_, slice vamm_addr) = get_vamm_state_init_and_address();
+  var (cell position_state_init, slice trader_position_addr) = get_position_state_init_and_address(vamm_addr, sender_addr);
+
+  request_position(op::remove_margin, query_id, in_msg_body, trader_position_addr, position_state_init);
+}
+
+() handle::pay_funding(slice in_msg_body, slice sender_addr, int query_id) impure inline {
+  load_data();
+  var (_, slice vamm_addr) = get_vamm_state_init_and_address();
+
+  var body = begin_cell()
+    .store_uint(op::pay_funding, 32)
+    .store_uint(query_id, 64)
+    .store_slice(in_msg_body);
+
+  send_simple_message(0, vamm_addr, body, mode::carry_remaining_gas);
+}

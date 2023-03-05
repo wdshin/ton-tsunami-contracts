@@ -1,6 +1,7 @@
 import { Address } from 'ton-core';
 
 export type PositionData = {
+  traderAddress: Address;
   size: bigint;
   margin: bigint;
   openNotional: bigint;
@@ -10,7 +11,6 @@ export type PositionData = {
 };
 
 export type TraderPositionWalletConfig = {
-  traderAddress: Address;
   vammAddress: Address;
   routerAddress: Address;
   isBusy: number;
