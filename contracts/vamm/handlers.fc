@@ -45,7 +45,10 @@
 
   if (~ (isNewPosition | expandExisting)) {
     ~dump(402);
-    ;; TODO: cant throw, revert amount back 
+    ;; TODO: cant throw, revert amount back and unlock position
+    ;; withdraw(trader_addr, marginToTrader, 100000000, 0);
+    ;; update_position();
+    
     return ();
   }
   int openNotional = muld(_amount, leverage);
@@ -93,6 +96,33 @@
   ;; raw_reserve(100000, 0);
 
   ;; TODO: other messages: Vault, excesses, etc.
+
+  {-
+    let (feeToStakers, feeToVault) = distributeFee(feeAmount + rolloverFee)
+    
+    strict stake = if (_amount >= rolloverFee) then {
+      invoke(
+        vaultAddress(),
+        "addLocked",
+        [],
+        [AttachedPayment(quoteAsset(), _amount - rolloverFee)]
+      )
+    } else {
+      invoke(
+        vaultAddress(),
+        "withdrawLocked",
+        [rolloverFee - _amount],
+        []
+      )
+    }
+
+    strict depositVault = invoke(
+      vaultAddress(),
+      "addFree",
+      [],
+      [AttachedPayment(quoteAsset(), feeToVault)]
+    )
+  -}
 
   ~dump(666);
         
@@ -193,7 +223,7 @@
   db::openInterestLong = totalLongOpenInterestAfter;
   db::openInterestShort = totalShortOpenInterestAfter;
 
-  int ammNewBalance = max(ammBalance, 0);
+  int ammNewBalance = ammBalance < 0 ? 0 : ammBalance;
   db::balance = ammNewBalance;
 
   ;;   TODO: transfer fee here

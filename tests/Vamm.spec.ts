@@ -1,15 +1,14 @@
 import '@ton-community/test-utils';
 import { compile } from '@ton-community/blueprint';
-import { Blockchain, Event, SandboxContract, TreasuryContract } from '@ton-community/sandbox';
+import { Blockchain, SandboxContract, TreasuryContract } from '@ton-community/sandbox';
 import { toNano } from 'ton-core';
-
-import { IncreasePositionBody, unpackWithdrawMessage, Vamm } from '../wrappers/Vamm';
-import { initVammData } from '../wrappers/Vamm/Vamm.data';
-import { PositionData, unpackPositionData } from '../wrappers/TraderPositionWallet';
-import { toStablecoin } from '../utils';
-import { EventMessageSent, extractEvents } from '@ton-community/sandbox/dist/event/Event';
 import { sleep } from '@ton-community/blueprint/dist/utils';
 
+import { IncreasePositionBody, Vamm } from '../wrappers/Vamm';
+import { initVammData } from '../wrappers/Vamm/Vamm.data';
+import { PositionData } from '../wrappers/TraderPositionWallet';
+import { getAndUnpackPosition, getAndUnpackWithdrawMessage, toStablecoin } from '../utils';
+import { extractEvents } from '@ton-community/sandbox/dist/event/Event';
 const Direction = {
   long: 1,
   short: 2,
@@ -23,21 +22,6 @@ const emptyPosition = {
   fee: 0n,
   lastUpdatedTimestamp: 0n,
 };
-
-function extractEventAtIndex(events: Event[], index = -1): EventMessageSent {
-  const lastVammTx = events.at(index);
-  if (lastVammTx?.type !== 'message_sent')
-    throw new Error(`Event at ${index} is not a sent message`);
-  return lastVammTx;
-}
-
-function getAndUnpackPosition(events: Event[], index = -1): PositionData {
-  return unpackPositionData(extractEventAtIndex(events, index).body.beginParse().preloadRef());
-}
-
-function getAndUnpackWithdrawMessage(events: Event[], index = -1) {
-  return unpackWithdrawMessage(extractEventAtIndex(events, index).body);
-}
 
 describe('vAMM should work with positive funding', () => {
   let blockchain: Blockchain;
