@@ -1,5 +1,5 @@
 import '@ton-community/test-utils';
-import { compile } from '@ton-community/blueprint';
+import { compile, sleep } from '@ton-community/blueprint';
 import { Blockchain, SandboxContract, TreasuryContract } from '@ton-community/sandbox';
 import { toNano } from 'ton-core';
 
@@ -85,6 +85,7 @@ describe('vAMM should work with positive funding', () => {
       expect(ammData.balance).toBe(9964129n);
     }
 
+    await sleep(1100);
     const newPosition = getAndUnpackPosition(increaseResult.events);
 
     await vamm.sendClosePosition(longerPosition.getSender(), {

@@ -223,7 +223,7 @@
   db::openInterestLong = totalLongOpenInterestAfter;
   db::openInterestShort = totalShortOpenInterestAfter;
 
-  int ammNewBalance = ammBalance < 0 ? 0 : ammBalance;
+  int ammNewBalance = max(ammBalance, 0);
   db::balance = ammNewBalance;
 
   ;;   TODO: transfer fee here
