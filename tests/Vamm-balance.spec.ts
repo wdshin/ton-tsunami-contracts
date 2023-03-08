@@ -29,9 +29,6 @@ describe('vAMM should work with positive funding', () => {
   let longer: SandboxContract<TreasuryContract>;
   let longerPosition: SandboxContract<TreasuryContract>;
   let lastLongerPosition: PositionData;
-  let shorter: SandboxContract<TreasuryContract>;
-  let shorterPosition: SandboxContract<TreasuryContract>;
-  let lastShorterPosition: PositionData;
   let router: SandboxContract<TreasuryContract>;
 
   beforeAll(async () => {
@@ -47,10 +44,6 @@ describe('vAMM should work with positive funding', () => {
     longerPosition = await blockchain.treasury('longerPosition');
     lastLongerPosition = { ...emptyPosition, traderAddress: longer.address };
 
-    shorter = await blockchain.treasury('shorter');
-    shorterPosition = await blockchain.treasury('shorterPosition');
-    lastShorterPosition = { ...emptyPosition, traderAddress: shorter.address };
-
     router = await blockchain.treasury('router');
     vamm = blockchain.openContract(
       Vamm.createFromConfig(
@@ -63,7 +56,7 @@ describe('vAMM should work with positive funding', () => {
     await vamm.sendDeploy(deployer.getSender(), toNano('0.5'));
   });
 
-  it('Can open position', async () => {
+  it('Opening and closing positions should change balance', async () => {
     const increasePositionBody: IncreasePositionBody = {
       amount: toStablecoin(10),
       direction: Direction.long,

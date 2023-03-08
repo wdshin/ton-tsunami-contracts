@@ -9,7 +9,7 @@ const fakeUsdAddr = Address.parse('kQDuLkq23W-n4U200Ppqn-6ZLcGa2CTqa3KKgrMB0Zpwq
 const Direction = { long: 1, short: 2 };
 
 export async function run(provider: NetworkProvider) {
-  const routerAddress = Address.parse('EQBgo51AFP7EWGms6mKN444S88pfpvpwRLaV0F94hyApBMdk');
+  const routerAddress = Address.parse('EQDsFSqXy8CCIYvYkVErL3TlNa-V47uge8SkIBY4qSTrc3Ds');
 
   const openedRouter = provider.open(Router.createFromAddress(routerAddress));
   const positionAddres = await openedRouter.getTraderPositionAddress(provider.sender().address!);
@@ -44,7 +44,7 @@ export async function run(provider: NetworkProvider) {
   // });
 
   await openedJW.sendTransfer(provider.sender(), toNano('0.3'), {
-    amount: toStablecoin(1000),
+    amount: toStablecoin(100),
     destination: routerAddress,
     forwardAmount: toNano('0.25'),
     responseDestination: provider.sender().address,

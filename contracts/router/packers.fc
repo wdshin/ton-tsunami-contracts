@@ -41,7 +41,7 @@ cell pack_vamm_data(slice router_addr, cell trader_position_wallet_code) inline_
       0, ;; longFundingRate
       0  ;;shortFundingRate
     ))
-      .store_ref(ctx::trader_position_wallet_code)
+      .store_ref(trader_position_wallet_code)
       .end_cell();
 }
 

@@ -1,3 +1,5 @@
+#include "../router/packers.fc";
+
 slice get_serialized_address(int workchain, int address_hash) inline {
   return begin_cell()
       .store_uint(4, 3)
@@ -5,4 +7,28 @@ slice get_serialized_address(int workchain, int address_hash) inline {
       .store_uint(address_hash, 256)
       .end_cell()
       .begin_parse();
+}
+
+const int WORKCHAIN = 0;
+
+(cell, slice) get_vamm_state_init_and_address(cell vamm_code, cell trader_position_wallet_code) inline {
+  cell state_init = begin_cell()
+        .store_uint(0, 2)
+        .store_dict(vamm_code)
+        .store_dict(pack_vamm_data(my_address(), trader_position_wallet_code))
+        .store_uint(0, 1)
+        .end_cell();
+    
+  return (state_init, get_serialized_address(WORKCHAIN, cell_hash(state_init)));
+}
+
+(cell, slice) get_position_state_init_and_address(cell trader_position_wallet_code, slice vamm_addr, slice trader_addr) inline {
+  cell state_init = begin_cell()
+        .store_uint(0, 2)
+        .store_dict(trader_position_wallet_code)
+        .store_dict(pack_init_position_data(vamm_addr, trader_addr, my_address()))
+        .store_uint(0, 1)
+        .end_cell();
+    
+  return (state_init, get_serialized_address(WORKCHAIN, cell_hash(state_init)));
 }

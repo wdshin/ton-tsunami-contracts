@@ -11,7 +11,7 @@ export async function run(provider: NetworkProvider) {
       traderPositionWalletCode: await compile('TraderPositionWallet'),
       adminAddress: deployerAddress,
       whitelistedJettonWalletAddress: Address.parse(
-        'EQAEDydQwnlfAEgcAgK89WLTsKHhz28G_nxQWuf3lEQzpx8q' // any, will be overwritten
+        'EQAdeaoRSNRoV7ABKgr-gx70pSG6XTTPyITnGLTUZNevSYCO' // any, will be overwritten
       ),
     },
     await compile('Router')

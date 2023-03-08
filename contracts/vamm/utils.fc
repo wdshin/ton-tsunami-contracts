@@ -1,15 +1,24 @@
+#include "../shared/stdlib.fc";
 #include "../shared/messages.fc";
+#include "../shared/utils.fc";
 
 #include "../trader_position_wallet/packers.fc";
 
 #include "./constants.fc";
 #include "./storage.fc";
+#include "./op-codes.fc";
 
 int divd(int _x, int _y) inline {
   return muldivr(_x, DECIMAL_UNIT, _y);
 }
 int muld(int _x, int _y) inline {
   return muldivr(_x, _y, DECIMAL_UNIT);
+}
+
+;; TODO: use it in vamm handlers when receiving msg from position wallet
+() require_position_address(slice sender_address, slice trader_addr) impure inline {
+  var (_, slice position_addr) = get_position_state_init_and_address(db::trader_position_wallet_code, my_address(), trader_addr);
+  throw_unless(123, equal_slices(sender_address, position_addr));
 }
 
 cell pack_position_init_data(slice trader_addr, slice vamm_addr) {
@@ -20,7 +29,7 @@ cell pack_position_init_data(slice trader_addr, slice vamm_addr) {
           .end_cell();
 }
 
-() withdraw(slice trader_addr, int jetton_amount, int value, int mode) impure inline_ref {
+() withdraw (slice trader_addr, int jetton_amount, int value, int mode) impure inline {
   var body = begin_cell()
     .store_uint(op::withdraw, 32)
     .store_uint(0, 64) ;; TODO: query_id
@@ -30,20 +39,26 @@ cell pack_position_init_data(slice trader_addr, slice vamm_addr) {
   send_simple_message(value, db::router_addr, body, mode);
 }
 
-_ update_position(slice trader_addr, slice sender_addr, int newPositionSize, int newPositionMargin, int newPositionOpenNotional, int newPositionLastUpdatedCPF, int newPositionFee, int newTimestamp) impure inline_ref {
-  int storage_ton = 100000000; ;; 0.1
-  raw_reserve(storage_ton, 0);
-  cell new_position_ref = pack_position_data(trader_addr, newPositionSize, newPositionMargin, newPositionOpenNotional, newPositionLastUpdatedCPF, newPositionFee, newTimestamp);
+_ unlock_position(slice sender_addr, int value, int mode) impure inline {
+  var body = begin_cell()
+    .store_uint(op::unlock_position, 32);
+
+  send_simple_message(0, sender_addr, body, mode);
+}
+
+_ update_position(cell new_position_ref, int origin_op, int query_id, slice sender_addr, int value, int mode) impure inline_ref {
   ;; quoteAstR, baseAstR, quoteAstW
   ;; send message to update and unlock trader position;
   var new_position_body = begin_cell()
     .store_uint(op::update_position, 32)
+    .store_uint(query_id, 64)
+    .store_uint(origin_op, 32)
     .store_uint(db::quoteAssetReserve, 128)
     .store_uint(db::quoteAssetWeight, 128)
     .store_uint(db::baseAssetReserve, 128)
     .store_ref(new_position_ref);
 
-  send_simple_message(0, sender_addr, new_position_body, mode::carry_all_balance);
+  send_simple_message(value, sender_addr, new_position_body, mode);
 }
 
 cell calculate_position_wallet_state_init(cell jetton_wallet_code, slice trader_addr, slice vamm_addr) inline {

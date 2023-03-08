@@ -51,17 +51,17 @@
     }
 
     if (op == op::increase_position) {
-        handle::increase_position(in_msg_body, sender_addr, query_id);
+        handle::increase_position(in_msg_body, sender_addr, query_id, msg_value);
         return ();
     }
 
     if (op == op::add_margin) {
-        handle::add_margin(in_msg_body, sender_addr, query_id);
+        handle::add_margin(in_msg_body, sender_addr, query_id, msg_value);
         return ();
     }
     
     if (op == op::close_position) {
-        handle::close_position(in_msg_body, sender_addr, query_id, msg_value);
+        handle::close_position(in_msg_body, sender_addr, query_id, my_balance, msg_value);
         return ();
     }
 

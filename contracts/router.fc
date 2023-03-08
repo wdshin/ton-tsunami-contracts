@@ -1,6 +1,7 @@
 #pragma version >=0.4.1;
 
 #include "shared/stdlib.fc";
+#include "shared/utils.fc";
 #include "shared/messages.fc";
 #include "shared/jetton-op-codes.fc";
 
@@ -11,7 +12,6 @@
 #include "router/op-codes.fc";
 #include "router/utils.fc";
 #include "router/handlers.fc";
-
 
 ;; TODO: refactor to handlers/calls for every OP
 () recv_internal(int my_balance, int msg_value, cell in_msg_full, slice in_msg_body) impure {
@@ -60,7 +60,7 @@
         load_data();
         throw_unless(error::not_an_admin, equal_slices(sender_addr, ctx::admin_address));
 
-        var (cell state_init, slice vamm_addr) = get_vamm_state_init_and_address();
+        var (cell state_init, slice vamm_addr) = get_vamm_state_init_and_address(ctx::vamm_code, ctx::trader_position_wallet_code);
         var body = begin_cell()
             .store_uint(op::temp_set_amm_data, 32)
             .store_uint(query_id, 64)
@@ -89,14 +89,14 @@ _ get_router_data() method_id {
 ;; TODO: index -> amm
 slice get_amm_address() method_id {
     load_data();
-    var (_, slice vamm_addr) = get_vamm_state_init_and_address();
+    var (_, slice vamm_addr) = get_vamm_state_init_and_address(ctx::vamm_code, ctx::trader_position_wallet_code);
     return vamm_addr;
 }
 
 ;; TODO: (index, trader) -> amm
 slice get_trader_position_address(slice trader_addr) method_id {
     load_data();
-    var (_, slice vamm_addr) = get_vamm_state_init_and_address();
-    var (_, slice trader_position_addr) = get_position_state_init_and_address(vamm_addr, trader_addr);
+    var (_, slice vamm_addr) = get_vamm_state_init_and_address(ctx::vamm_code, ctx::trader_position_wallet_code);
+    var (_, slice trader_position_addr) = get_position_state_init_and_address(ctx::trader_position_wallet_code, vamm_addr, trader_addr);
     return trader_position_addr;
 }

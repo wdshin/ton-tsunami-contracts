@@ -7,3 +7,4 @@ const op::add_margin = "op::add_margin"c;
 const op::remove_margin = "op::remove_margin"c;
 const op::pay_funding = "op::pay_funding"c;
 const op::withdraw = "op::withdraw"c;
+const op::unlock_position = "op::unlock_position"c;

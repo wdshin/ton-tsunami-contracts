@@ -4,7 +4,7 @@
 #include "./storage.fc";
 #include "./utils.fc";
 
-() handle::increase_position(slice in_msg_body, slice sender_addr, int query_id) impure inline {
+() handle::increase_position(slice in_msg_body, slice sender_addr, int query_id, int msg_value) impure inline {
   load_data();
   slice position_s = in_msg_body.preload_ref().begin_parse();
   slice payload_s = in_msg_body;
@@ -21,7 +21,12 @@
         | ~ requireMoreMarginRatio(divd(DECIMAL_UNIT, leverage), db::initMarginRatio, true)
   ) {
     ~dump(401);
-    ;; TODO: cant throw, revert amount back 
+    int withdraw_ton_amount = 120000000; ;; TODO: calculate gas fee from config
+
+    int unlock_ton_amount = msg_value - withdraw_ton_amount;
+
+    withdraw(position_s~load_msg_addr(), raw_amount, withdraw_ton_amount, mode::normal);
+    unlock_position(sender_addr, unlock_ton_amount, mode::normal);
     return ();
   }
   ;; TODO: fee calculations    
@@ -46,11 +51,18 @@
   if (~ (isNewPosition | expandExisting)) {
     ~dump(402);
     ;; TODO: cant throw, revert amount back and unlock position
-    ;; withdraw(trader_addr, marginToTrader, 100000000, 0);
-    ;; update_position();
-    
+    ;; int storage_ton = 100000000; ;; 0.1
+    ;; raw_reserve(storage_ton, 0);
+
+    int withdraw_ton_amount = 120000000; ;; TODO: 
+
+    int unlock_ton_amount = msg_value - withdraw_ton_amount;
+
+    withdraw(trader_addr, raw_amount, withdraw_ton_amount, mode::normal);
+    unlock_position(sender_addr, unlock_ton_amount, mode::normal);
     return ();
   }
+
   int openNotional = muld(_amount, leverage);
   var ( 
     int amountBaseAssetBought,
@@ -90,7 +102,10 @@
   db::baseAssetReserve = baseAssetReserveAfter;
   db::balance += _amount;
 
-  update_position(trader_addr, sender_addr, newPositionSize, newPositionMargin, newPositionOpenNotional, newPositionLatestCPF, old_position_fee, now());
+
+  cell new_position_ref = pack_position_data(trader_addr, newPositionSize, newPositionMargin, newPositionOpenNotional, newPositionLatestCPF, old_position_fee, now());
+  ;; TODO: calculate value and mode
+  update_position(new_position_ref, op::increase_position, query_id, sender_addr, 0, mode::carry_remaining_gas);
 
   ;; TODO: need this?
   ;; raw_reserve(100000, 0);
@@ -129,7 +144,7 @@
   save_data();
 }
 
-() handle::close_position(slice in_msg_body, slice sender_addr, int query_id, int msg_value) impure inline {
+() handle::close_position(slice in_msg_body, slice sender_addr, int query_id, int my_balance, int msg_value) impure inline {
   slice position_s = in_msg_body.preload_ref().begin_parse();
   slice payload_s = in_msg_body;
 
@@ -146,6 +161,14 @@
     int oldPositionTimestamp) = unpack_position_data(position_s);
 
   load_data();
+
+  ~dump(888);
+
+  ifnot ((_size <= abs(oldPositionSize)) & (_size > 0)) {
+    ~dump(889);
+    unlock_position(sender_addr, 0, mode::carry_remaining_gas);
+    return ();
+  }
 
   var (
     int newPositionSize,
@@ -179,7 +202,8 @@
 
   if ((positionBadDebt > 0) | (oldPositionTimestamp >= now())) {
     ;; TODO: throw exception
-    ~dump(404);
+    ~dump(406);
+    unlock_position(sender_addr, 0, mode::carry_remaining_gas);
     return ();
   }
         
@@ -204,15 +228,24 @@
 
   ~dump(888);
   ~dump(marginToTrader);
+
+  ;; raw_reserve(mint_storage_tons, 0);
+
+  int mint_storage_tons = 50000000;
+  int value_to_sent = my_balance - mint_storage_tons;
   
   if (marginToTrader > 0) {
     ~dump(999);
+    int withdraw_ton = 110000000;
+    value_to_sent -= withdraw_ton;
     ;; TODO: calculate value and mode
     ;; 0.1ton
-    withdraw(trader_addr, marginToTrader, 100000000, 0);
+    withdraw(trader_addr, marginToTrader, withdraw_ton, mode::normal);
   }
+
+  cell new_position_ref = pack_position_data(newPositionSize != 0 ? (trader_addr, newPositionSize, newPositionMargin, newPositionOpenNotional, newPositionLstUpdCPF, oldPositionFee, now()) : (trader_addr, 0, 0, 0, 0, 0, 0));
   ;; TODO: calculate value and mode
-  update_position(newPositionSize != 0 ? (trader_addr, sender_addr, newPositionSize, newPositionMargin, newPositionOpenNotional, newPositionLstUpdCPF, oldPositionFee, now()) : (trader_addr, sender_addr, 0, 0, 0, 0, 0, 0));
+  update_position(new_position_ref, op::close_position, query_id, sender_addr, value_to_sent, mode::normal);
 
   ;; TODO: need this? 
 
@@ -231,7 +264,7 @@
   save_data();
 }
 
-() handle::add_margin(slice in_msg_body, slice sender_addr, int query_id) impure inline {
+() handle::add_margin(slice in_msg_body, slice sender_addr, int query_id, int msg_value) impure inline {
   slice position_s = in_msg_body.preload_ref().begin_parse();
 
   slice payload_s = in_msg_body;
@@ -241,6 +274,12 @@
     ~dump(405);
     ;; TODO: cant throw, revert amount back 
     ;; throw("Invalid addMargin parameters")
+    int withdraw_ton_amount = 120000000; ;; TODO: calc withdraw_ton_amount gas fees from config
+
+    int unlock_ton_amount = msg_value - withdraw_ton_amount;
+
+    withdraw(position_s~load_msg_addr(), _amount, withdraw_ton_amount, mode::normal);
+    unlock_position(sender_addr, unlock_ton_amount, mode::normal);
     return ();
   }
   load_data();
@@ -286,7 +325,9 @@
   db::balance += (_amount - rolloverFee);
 
   int newPositionMargin = oldPositionMargin - rolloverFee + _amount;
-  update_position(trader_addr, sender_addr, oldPositionSize, newPositionMargin, oldPositionOpenNotional, oldPositionLastUpdatedCPF, oldPositionFee, now());
+  cell new_position_ref = pack_position_data(trader_addr, oldPositionSize, newPositionMargin, oldPositionOpenNotional, oldPositionLastUpdatedCPF, oldPositionFee, now());
+  ;; TODO: calculate value and mode
+  update_position(new_position_ref, op::add_margin, query_id, sender_addr, 0, mode::carry_remaining_gas);
 
   ;; TODO: vault/fee actions here doTransferFeeToStakers
   save_data();
@@ -298,7 +339,9 @@
   int _amount = payload_s~load_coins();
 
   if (_amount <= 0 | ~ requireOpenPosition(position_s)) {
-    ;; TODO: throw exception
+    ;; TODO: test throwing with unlocking position on bounce
+    unlock_position(sender_addr, 0, mode::carry_remaining_gas);
+    return ();
   }
 
   load_data();
@@ -345,8 +388,10 @@
   ;;   []
   ;; )
 
-  update_position(trader_addr, sender_addr, oldPositionSize, remainMargin, oldPositionOpenNotional, latestCumulativePremiumFraction(oldPositionSize), oldPositionFee, now());
-
+  
+  cell new_position_ref = pack_position_data(trader_addr, oldPositionSize, remainMargin, oldPositionOpenNotional, latestCumulativePremiumFraction(oldPositionSize), oldPositionFee, now());
+  ;; TODO: calculate value and mode
+  update_position(new_position_ref, op::remove_margin, query_id, sender_addr, 0, mode::carry_remaining_gas);
   ;; TODO: withdraw here 
   ;; withdraw(i.caller, _amount)
 
@@ -359,10 +404,7 @@
 
 () handle::pay_funding(slice in_msg_body, slice sender_addr, int query_id) impure inline {
   load_data();
-  if (now() < db::nextFundingBlockTimestamp) {
-    ;; TODO: throw exception
-    return ();
-  }
+  throw_if(600, now() < db::nextFundingBlockTimestamp);
 
   var (int shortPremiumFraction, int longPremiumFraction, int premiumToVault) = getFunding();
 

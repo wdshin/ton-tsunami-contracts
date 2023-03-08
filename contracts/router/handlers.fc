@@ -23,8 +23,8 @@
     ;; TODO: add index to payload_ref to work vith different vAMMs
 
     ;; TODO: get vamm_addr from payload to reduce gas consumption
-    var (_, slice vamm_addr) = get_vamm_state_init_and_address();
-    var (cell position_state_init, slice trader_position_addr) = get_position_state_init_and_address(vamm_addr, from_addr);
+    var (_, slice vamm_addr) = get_vamm_state_init_and_address(ctx::vamm_code, ctx::trader_position_wallet_code);
+    var (cell position_state_init, slice trader_position_addr) = get_position_state_init_and_address(ctx::trader_position_wallet_code, vamm_addr, from_addr);
 
     request_position_with_amount(payload_op, query_id, jetton_amount, payload_s, trader_position_addr, position_state_init);
     return ();
@@ -35,7 +35,7 @@
 
 () handle::withdraw(slice in_msg_body, slice sender_addr, int query_id) impure inline {
   load_data();
-  var (_, slice vamm_addr) = get_vamm_state_init_and_address();
+  var (_, slice vamm_addr) = get_vamm_state_init_and_address(ctx::vamm_code, ctx::trader_position_wallet_code);
   throw_unless(error::not_an_amm, equal_slices(sender_addr, vamm_addr));
 
   var (int jetton_amount, slice to_addr) = (in_msg_body~load_coins(), in_msg_body~load_msg_addr());
@@ -45,22 +45,22 @@
 
 () handle::close_position(slice in_msg_body, slice sender_addr, int query_id) impure inline {
   load_data();
-  var (_, slice vamm_addr) = get_vamm_state_init_and_address();
-  var (cell position_state_init, slice trader_position_addr) = get_position_state_init_and_address(vamm_addr, sender_addr);
+  var (_, slice vamm_addr) = get_vamm_state_init_and_address(ctx::vamm_code, ctx::trader_position_wallet_code);
+  var (cell position_state_init, slice trader_position_addr) = get_position_state_init_and_address(ctx::trader_position_wallet_code, vamm_addr, sender_addr);
   request_position(op::close_position, query_id, in_msg_body, trader_position_addr, position_state_init);
 }
 
 () handle::remove_margin(slice in_msg_body, slice sender_addr, int query_id) impure inline {
   load_data();
-  var (_, slice vamm_addr) = get_vamm_state_init_and_address();
-  var (cell position_state_init, slice trader_position_addr) = get_position_state_init_and_address(vamm_addr, sender_addr);
+  var (_, slice vamm_addr) = get_vamm_state_init_and_address(ctx::vamm_code, ctx::trader_position_wallet_code);
+  var (cell position_state_init, slice trader_position_addr) = get_position_state_init_and_address(ctx::trader_position_wallet_code, vamm_addr, sender_addr);
 
   request_position(op::remove_margin, query_id, in_msg_body, trader_position_addr, position_state_init);
 }
 
 () handle::pay_funding(slice in_msg_body, slice sender_addr, int query_id) impure inline {
   load_data();
-  var (_, slice vamm_addr) = get_vamm_state_init_and_address();
+  var (_, slice vamm_addr) = get_vamm_state_init_and_address(ctx::vamm_code, ctx::trader_position_wallet_code);
 
   var body = begin_cell()
     .store_uint(op::pay_funding, 32)

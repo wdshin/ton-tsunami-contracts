@@ -1,35 +1,11 @@
-#include "./packers.fc";
 #include "./storage.fc";
+#include "./packers.fc";
 #include "./op-codes.fc";
 
 #include "../shared/utils.fc";
 #include "../shared/messages.fc";
 #include "../shared/jetton-op-codes.fc";
 
-
-const int WORKCHAIN = 0;
-
-(cell, slice) get_vamm_state_init_and_address() inline {
-  cell state_init = begin_cell()
-        .store_uint(0, 2)
-        .store_dict(ctx::vamm_code)
-        .store_dict(pack_vamm_data(my_address(), ctx::trader_position_wallet_code))
-        .store_uint(0, 1)
-        .end_cell();
-    
-  return (state_init, get_serialized_address(WORKCHAIN, cell_hash(state_init)));
-}
-
-(cell, slice) get_position_state_init_and_address(slice vamm_addr, slice trader_addr) inline {
-  cell state_init = begin_cell()
-        .store_uint(0, 2)
-        .store_dict(ctx::trader_position_wallet_code)
-        .store_dict(pack_init_position_data(vamm_addr, trader_addr, my_address()))
-        .store_uint(0, 1)
-        .end_cell();
-    
-  return (state_init, get_serialized_address(WORKCHAIN, cell_hash(state_init)));
-}
 
 () send_withdraw(int query_id, int amount, slice to, int value, int mode) impure inline {
   var body = begin_cell()

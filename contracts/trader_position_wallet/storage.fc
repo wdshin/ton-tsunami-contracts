@@ -3,7 +3,7 @@ global slice ctx::router_addr;                                       ;; Router a
 global int ctx::is_busy;                                             ;; Flag indicating whether position is processing by amm or not
 global cell ctx::position_ref;                                        ;; Trader position content
 
-global slice trader_addr;                                 ;; Trader address
+;; global slice trader_addr;                              ;; Trader address
 ;; global int size;                                       ;; Trader position size (base asset)
 ;; global int margin;                                     ;; Trader position margin (quote asset) - how much quote asset is supporting the position
 ;; global int open_notional;                              ;; Trader position open notional - how much quote asset they have borrowed
