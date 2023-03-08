@@ -36,7 +36,7 @@ export class Router implements Contract {
   }
 
   static increasePosition(opts: {
-    direction: Direction; // 1 | 2
+    direction: Direction; // 0 | 1
     leverage: bigint;
     minBaseAssetAmount: bigint;
   }) {
