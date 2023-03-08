@@ -31,7 +31,7 @@
     if (op == op::temp_set_price) {
         load_data();
 
-        int new_price = in_msg_body~load_uint(128);
+        int new_price = in_msg_body~load_coins();
         var (
             int newQuoteAssetWeight
         ) = getSyncTerminalPrice(new_price, db::quoteAssetReserve, db::baseAssetReserve);
@@ -45,7 +45,7 @@
 
     if (op == op::temp_set_amm_data) {
         load_data();
-        var (db::balance, db::oraclePrice, db::quoteAssetReserve, db::baseAssetReserve) = (in_msg_body~load_coins(), in_msg_body~load_uint(128), in_msg_body~load_uint(128), in_msg_body~load_uint(128));
+        var (db::balance, db::oraclePrice, db::quoteAssetReserve, db::baseAssetReserve) = (in_msg_body~load_coins(), in_msg_body~load_coins(), in_msg_body~load_coins(), in_msg_body~load_coins());
         save_data();
         return ();
     }

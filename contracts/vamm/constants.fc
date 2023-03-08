@@ -1,5 +1,5 @@
-const direction::long = 1;
-const direction::short = 2;
+const direction::long = 0;
+const direction::short = 1;
 
 const SECONDS = 60;
 const ONE_DAY = 86400;

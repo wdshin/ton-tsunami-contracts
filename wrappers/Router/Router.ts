@@ -9,6 +9,7 @@ import {
   SendMode,
 } from 'ton-core';
 import { addressToCell, toStablecoin } from '../../utils';
+import { Direction } from '../Vamm';
 
 import { RouterConfig, RouterOpcodes } from './Router.types';
 
@@ -35,15 +36,15 @@ export class Router implements Contract {
   }
 
   static increasePosition(opts: {
-    direction: number; // 1 | 2
+    direction: Direction; // 1 | 2
     leverage: bigint;
     minBaseAssetAmount: bigint;
   }) {
     return beginCell()
       .storeUint(RouterOpcodes.increasePosition, 32)
-      .storeUint(opts.direction, 2)
+      .storeUint(opts.direction, 1)
       .storeUint(opts.leverage, 32)
-      .storeUint(opts.minBaseAssetAmount, 128)
+      .storeCoins(opts.minBaseAssetAmount)
       .endCell();
   }
 
@@ -52,9 +53,9 @@ export class Router implements Contract {
       .storeUint(RouterOpcodes.tempSetAmmData, 32)
       .storeUint(opts.queryID ?? 0, 64)
       .storeCoins(toStablecoin(opts.balance))
-      .storeUint(toStablecoin(opts.price), 128)
-      .storeUint(toStablecoin(opts.balance) ?? 0, 128)
-      .storeUint(toStablecoin(opts.balance / opts.price) ?? 0, 128)
+      .storeCoins(toStablecoin(opts.price))
+      .storeCoins(toStablecoin(opts.balance) ?? 0)
+      .storeCoins(toStablecoin(opts.balance / opts.price) ?? 0)
       .endCell();
   }
 
@@ -72,14 +73,14 @@ export class Router implements Contract {
     size: bigint;
     minQuoteAssetAmount: bigint;
   }) {
-    //   int _size = payload_s~load_uint(128);
+    //   int _size = payload_s~load_int(128);
     // int _minQuoteAssetAmount = payload_s~load_uint(128);
     // int _addToMargin = payload_s~load_uint(1);
     return beginCell()
       .storeUint(RouterOpcodes.closePosition, 32)
       .storeUint(opts.queryID ?? 0, 64)
-      .storeUint(opts.size, 128)
-      .storeUint(opts.minQuoteAssetAmount, 128)
+      .storeInt(opts.size, 128)
+      .storeCoins(opts.minQuoteAssetAmount)
       .storeBit(opts.addToMargin)
       .endCell();
   }

@@ -3,13 +3,13 @@ import { NetworkProvider } from '@ton-community/blueprint';
 import { Router } from '../wrappers/Router/Router';
 import { toStablecoin } from '../utils';
 import { JettonWallet } from '../wrappers/JettonWallet/JettonWallet';
+import { Direction } from '../wrappers/Vamm';
 
 const usdcAddr = Address.parse('kQBaYzBs3DaCEFtaE8fwQat_74IPBaLRQOTgZgPTPOVUDsFb');
 const fakeUsdAddr = Address.parse('kQDuLkq23W-n4U200Ppqn-6ZLcGa2CTqa3KKgrMB0ZpwqUO_');
-const Direction = { long: 1, short: 2 };
 
 export async function run(provider: NetworkProvider) {
-  const routerAddress = Address.parse('EQDsFSqXy8CCIYvYkVErL3TlNa-V47uge8SkIBY4qSTrc3Ds');
+  const routerAddress = Address.parse('EQDwj1zyEvtHFJOkWxYrzXtqJy5sEiXJIL4uRvg6b6ozjuh_');
 
   const openedRouter = provider.open(Router.createFromAddress(routerAddress));
   const positionAddres = await openedRouter.getTraderPositionAddress(provider.sender().address!);

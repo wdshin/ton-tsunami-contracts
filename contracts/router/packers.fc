@@ -1,10 +1,12 @@
+#include "../shared/stdlib.fc";
+
 #include "../trader_position_wallet/packers.fc";
 #include "../vamm/packers.fc";
 
 cell pack_vamm_data(slice router_addr, cell trader_position_wallet_code) inline_ref {
   return begin_cell()
       .store_coins(0) ;; balance
-      .store_uint(0, 128) ;; oraclePrice
+      .store_coins(0) ;; oraclePrice
       .store_slice(router_addr)
       .store_ref(
     pack_exchange_settings(

@@ -1,14 +1,19 @@
 import '@ton-community/test-utils';
 import { compile } from '@ton-community/blueprint';
 import { Blockchain, SandboxContract, TreasuryContract } from '@ton-community/sandbox';
-import { toNano } from 'ton-core';
 import { sleep } from '@ton-community/blueprint/dist/utils';
+import { toNano } from 'ton-core';
 
-import { Direction, IncreasePositionBody, Vamm } from '../wrappers/Vamm';
+import { IncreasePositionBody, Vamm } from '../wrappers/Vamm';
 import { initVammData } from '../wrappers/Vamm/Vamm.data';
 import { PositionData } from '../wrappers/TraderPositionWallet';
 import { getAndUnpackPosition, getAndUnpackWithdrawMessage, toStablecoin } from '../utils';
 import { extractEvents } from '@ton-community/sandbox/dist/event/Event';
+
+const Direction = {
+  long: 1,
+  short: 2,
+};
 
 const emptyPosition = {
   size: 0n,

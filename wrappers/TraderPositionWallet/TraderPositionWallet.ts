@@ -8,9 +8,9 @@ export function unpackPositionData(cell: Cell): PositionData {
   return {
     traderAddress: cs.loadAddress(),
     size: BigInt(cs.loadInt(128)),
-    margin: BigInt(cs.loadUint(128)),
-    openNotional: BigInt(cs.loadUint(128)),
-    lastUpdatedCumulativePremium: BigInt(cs.loadUint(128)),
+    margin: BigInt(cs.loadCoins()),
+    openNotional: BigInt(cs.loadCoins()),
+    lastUpdatedCumulativePremium: BigInt(cs.loadCoins()),
     fee: BigInt(cs.loadUint(32)),
     lastUpdatedTimestamp: BigInt(cs.loadUint(32)),
   };
@@ -20,9 +20,9 @@ export function packPositionData(data: PositionData) {
   return beginCell()
     .storeAddress(data.traderAddress)
     .storeInt(data.size, 128)
-    .storeUint(data.margin, 128)
-    .storeUint(data.openNotional, 128)
-    .storeUint(data.lastUpdatedCumulativePremium, 128)
+    .storeCoins(data.margin)
+    .storeCoins(data.openNotional)
+    .storeCoins(data.lastUpdatedCumulativePremium)
     .storeUint(data.fee, 32)
     .storeUint(data.lastUpdatedTimestamp, 32)
     .endCell();

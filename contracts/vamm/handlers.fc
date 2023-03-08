@@ -11,15 +11,13 @@
 
   ;; TODO: msg layout
   int raw_amount = payload_s~load_coins();
-  int direction = payload_s~load_uint(2);
+  int direction = payload_s~load_uint(1);
   int leverage = payload_s~load_uint(32);
-  int min_base_asset_amount = payload_s~load_uint(128);
+  int min_base_asset_amount = payload_s~load_coins();
 
   ;; Check...
   ;; TODO: check asset on router
-  if ((direction != direction::long) & (direction != direction::short) 
-        | ~ requireMoreMarginRatio(divd(DECIMAL_UNIT, leverage), db::initMarginRatio, true)
-  ) {
+  if (~ requireMoreMarginRatio(divd(DECIMAL_UNIT, leverage), db::initMarginRatio, true)) {
     ~dump(401);
     int withdraw_ton_amount = 120000000; ;; TODO: calculate gas fee from config
 
@@ -90,11 +88,8 @@
         
   int newPositionLatestCPF = latestCumulativePremiumFraction(newPositionSize);
 
-  int newTotalLongPositionSize = db::totalLongPositionSize + (newPositionSize > 0 ? abs(amountBaseAssetBought) : 0);
-  int newTotalShortPositionSize = db::totalShortPositionSize + (newPositionSize < 0 ? abs(amountBaseAssetBought) : 0);
-
-  db::totalLongPositionSize = newTotalLongPositionSize;
-  db::totalShortPositionSize = newTotalShortPositionSize;
+  db::totalLongPositionSize += newPositionSize > 0 ? abs(amountBaseAssetBought) : 0;
+  db::totalShortPositionSize += newPositionSize < 0 ? abs(amountBaseAssetBought) : 0;
   db::openInterestLong = totalLongOpenInterestAfter;
   db::openInterestShort = totalShortOpenInterestAfter;
 
@@ -148,8 +143,8 @@
   slice position_s = in_msg_body.preload_ref().begin_parse();
   slice payload_s = in_msg_body;
 
-  int _size = payload_s~load_uint(128);
-  int _minQuoteAssetAmount = payload_s~load_uint(128);
+  int _size = payload_s~load_int(128);
+  int _minQuoteAssetAmount = payload_s~load_coins();
   int _addToMargin = payload_s~load_uint(1);
 
   var (slice trader_addr,

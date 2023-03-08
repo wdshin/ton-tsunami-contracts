@@ -53,9 +53,9 @@ _ update_position(cell new_position_ref, int origin_op, int query_id, slice send
     .store_uint(op::update_position, 32)
     .store_uint(query_id, 64)
     .store_uint(origin_op, 32)
-    .store_uint(db::quoteAssetReserve, 128)
-    .store_uint(db::quoteAssetWeight, 128)
-    .store_uint(db::baseAssetReserve, 128)
+    .store_coins(db::quoteAssetReserve)
+    .store_coins(db::quoteAssetWeight)
+    .store_coins(db::baseAssetReserve)
     .store_ref(new_position_ref);
 
   send_simple_message(value, sender_addr, new_position_body, mode);

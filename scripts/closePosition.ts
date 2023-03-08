@@ -4,7 +4,7 @@ import { Router } from '../wrappers/Router/Router';
 import { TraderPositionWallet } from '../wrappers/TraderPositionWallet';
 
 export async function run(provider: NetworkProvider) {
-  const routerAddress = Address.parse('EQDsFSqXy8CCIYvYkVErL3TlNa-V47uge8SkIBY4qSTrc3Ds');
+  const routerAddress = Address.parse('EQDwj1zyEvtHFJOkWxYrzXtqJy5sEiXJIL4uRvg6b6ozjuh_');
   const openedRouter = provider.open(Router.createFromAddress(routerAddress));
 
   const tpwAddress = await openedRouter.getTraderPositionAddress(provider.sender().address!);

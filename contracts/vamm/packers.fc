@@ -10,7 +10,7 @@ _ unpack_exchange_settings(slice ds) inline {
     ds~load_uint(32), ;; db::spreadLimit;                              
     ds~load_uint(32), ;; db::maxPriceImpact;                           
     ds~load_uint(32), ;; db::maxPriceSpread;                           
-    ds~load_uint(128), ;; db::maxOpenNotional;                          
+    ds~load_coins(), ;; db::maxOpenNotional;                          
     ds~load_uint(32), ;; db::feeToStakersPercent;                      
     ds~load_uint(32) ;; db::maxOracleDelay;                           
   );
@@ -41,7 +41,7 @@ cell pack_exchange_settings(
             .store_uint(spreadLimit ,32) ;; db::spreadLimit;                              
             .store_uint(maxPriceImpact ,32) ;; db::maxPriceImpact;                           
             .store_uint(maxPriceSpread ,32) ;; db::maxPriceSpread;                           
-            .store_uint(maxOpenNotional ,128) ;; db::maxOpenNotional;                          
+            .store_coins(maxOpenNotional) ;; db::maxOpenNotional;                          
             .store_uint(feeToStakersPercent ,32) ;; db::feeToStakersPercent;                      
             .store_uint(maxOracleDelay ,32) ;; db::maxOracleDelay;                           
             .end_cell();
@@ -49,13 +49,13 @@ cell pack_exchange_settings(
 
 _ unpack_amm_state(slice ds) inline {
   return (
-    ds~load_uint(128), ;; quoteAssetReserve
-    ds~load_uint(128), ;; baseAssetReserve
+    ds~load_coins(), ;; quoteAssetReserve
+    ds~load_coins(), ;; baseAssetReserve
     ds~load_uint(32), ;; quoteAssetWeight
-    ds~load_uint(128), ;; totalLongPositionSize
-    ds~load_uint(128), ;; totalShortPositionSize
-    ds~load_uint(128), ;; openInterestLong
-    ds~load_uint(128) ;; openInterestShort
+    ds~load_coins(), ;; totalLongPositionSize
+    ds~load_coins(), ;; totalShortPositionSize
+    ds~load_coins(), ;; openInterestLong
+    ds~load_coins() ;; openInterestShort
   );
 }
 
@@ -69,20 +69,20 @@ cell pack_amm_state(
   int openInterestShort
 ) {
   return begin_cell()
-          .store_uint(quoteAssetReserve, 128)
-          .store_uint(baseAssetReserve, 128)
+          .store_coins(quoteAssetReserve)
+          .store_coins(baseAssetReserve)
           .store_uint(quoteAssetWeight, 32)
-          .store_int(totalLongPositionSize, 128)
-          .store_uint(totalShortPositionSize, 128)
-          .store_uint(openInterestLong, 128)
-          .store_uint(openInterestShort, 128)
+          .store_coins(totalLongPositionSize)
+          .store_coins(totalShortPositionSize)
+          .store_coins(openInterestLong)
+          .store_coins(openInterestShort)
           .end_cell();
 }
 
 _ unpack_funding_state(slice ds) inline {
   return (
-    ds~load_uint(128), ;; latestLongCumulativePremiumFraction
-    ds~load_uint(128), ;; latestShortCumulativePremiumFraction
+    ds~load_coins(), ;; latestLongCumulativePremiumFraction
+    ds~load_coins(), ;; latestShortCumulativePremiumFraction
     ds~load_uint(32),   ;; nextFundingBlockTimestamp
     ds~load_uint(2),   ;; fundingMode
     ds~load_uint(32),   ;; longFundingRate
@@ -99,10 +99,10 @@ cell pack_funding_state(
   int shortFundingRate
 ) {
   return begin_cell()
-          .store_uint(latestLongCumulativePremiumFraction, 128)
-          .store_uint(latestShortCumulativePremiumFraction, 128)
+          .store_coins(latestLongCumulativePremiumFraction)
+          .store_coins(latestShortCumulativePremiumFraction)
           .store_uint(nextFundingBlockTimestamp, 32)
-          .store_int(fundingMode, 2)
+          .store_uint(fundingMode, 2)
           .store_uint(longFundingRate, 32)
           .store_uint(shortFundingRate, 32)
           .end_cell();

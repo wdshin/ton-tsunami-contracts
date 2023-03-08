@@ -44,7 +44,7 @@ _ load_raw_data() impure inline {
   slice ds = get_data().begin_parse();
   return (
     ds~load_coins(),
-    ds~load_uint(128),
+    ds~load_coins(),
     ds~load_msg_addr(),
     ds~load_ref(),
     ds~load_ref(),
@@ -56,7 +56,7 @@ _ load_raw_data() impure inline {
 () load_data() impure inline {
   slice ds = get_data().begin_parse();
   db::balance = ds~load_coins();
-  db::oraclePrice = ds~load_uint(128);
+  db::oraclePrice = ds~load_coins();
   db::router_addr = ds~load_msg_addr();
 
   var (
@@ -104,7 +104,7 @@ _ load_raw_data() impure inline {
   set_data(
     begin_cell()
       .store_coins(db::balance)
-      .store_uint(db::oraclePrice, 128)
+      .store_coins(db::oraclePrice)
       .store_slice(db::router_addr)
       .store_ref(pack_exchange_settings(
         db::fee,

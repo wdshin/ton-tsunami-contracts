@@ -31,7 +31,7 @@ export function packExchangeSettings(settings: ExchangeSettings) {
     .storeUint(settings.spreadLimit, 32)
     .storeUint(settings.maxPriceImpact, 32)
     .storeUint(settings.maxPriceSpread, 32)
-    .storeUint(settings.maxOpenNotional, 128)
+    .storeCoins(settings.maxOpenNotional)
     .storeUint(settings.feeToStakersPercent, 32)
     .storeUint(settings.maxOracleDelay, 32)
     .endCell();
@@ -50,7 +50,7 @@ export function unpackExchangeSettings(cell: Cell): ExchangeSettings {
     spreadLimit: BigInt(cs.loadUint(32)),
     maxPriceImpact: BigInt(cs.loadUint(32)),
     maxPriceSpread: BigInt(cs.loadUint(32)),
-    maxOpenNotional: BigInt(cs.loadUint(128)),
+    maxOpenNotional: BigInt(cs.loadCoins()),
     feeToStakersPercent: BigInt(cs.loadUint(32)),
     maxOracleDelay: BigInt(cs.loadUint(32)),
   };
@@ -58,33 +58,33 @@ export function unpackExchangeSettings(cell: Cell): ExchangeSettings {
 
 export function packAmmState(state: AmmState) {
   return beginCell()
-    .storeUint(state.quoteAssetReserve, 128)
-    .storeUint(state.baseAssetReserve, 128)
+    .storeCoins(state.quoteAssetReserve)
+    .storeCoins(state.baseAssetReserve)
     .storeUint(state.quoteAssetWeight, 32)
-    .storeInt(state.totalLongPositionSize, 128)
-    .storeUint(state.totalShortPositionSize, 128)
-    .storeUint(state.openInterestLong, 128)
-    .storeUint(state.openInterestShort, 128)
+    .storeCoins(state.totalLongPositionSize)
+    .storeCoins(state.totalShortPositionSize)
+    .storeCoins(state.openInterestLong)
+    .storeCoins(state.openInterestShort)
     .endCell();
 }
 
 export function unpackAmmState(cell: Cell): AmmState {
   const cs = cell.beginParse();
   return {
-    quoteAssetReserve: BigInt(cs.loadUint(128)),
-    baseAssetReserve: BigInt(cs.loadUint(128)),
+    quoteAssetReserve: BigInt(cs.loadCoins()),
+    baseAssetReserve: BigInt(cs.loadCoins()),
     quoteAssetWeight: BigInt(cs.loadUint(32)),
-    totalLongPositionSize: BigInt(cs.loadInt(128)),
-    totalShortPositionSize: BigInt(cs.loadUint(128)),
-    openInterestLong: BigInt(cs.loadUint(128)),
-    openInterestShort: BigInt(cs.loadUint(128)),
+    totalLongPositionSize: BigInt(cs.loadCoins()),
+    totalShortPositionSize: BigInt(cs.loadCoins()),
+    openInterestLong: BigInt(cs.loadCoins()),
+    openInterestShort: BigInt(cs.loadCoins()),
   };
 }
 
 export function packFundingState(state: FundingState) {
   return beginCell()
-    .storeUint(state.latestLongCumulativePremiumFraction, 128)
-    .storeUint(state.latestShortCumulativePremiumFraction, 128)
+    .storeCoins(state.latestLongCumulativePremiumFraction)
+    .storeCoins(state.latestShortCumulativePremiumFraction)
     .storeUint(state.nextFundingBlockTimestamp, 32)
     .storeUint(state.fundingMode, 2)
     .storeUint(state.longFundingRate, 32)
@@ -95,8 +95,8 @@ export function packFundingState(state: FundingState) {
 export function unpackFundingState(cell: Cell): FundingState {
   const cs = cell.beginParse();
   return {
-    latestLongCumulativePremiumFraction: BigInt(cs.loadUint(128)),
-    latestShortCumulativePremiumFraction: BigInt(cs.loadUint(128)),
+    latestLongCumulativePremiumFraction: BigInt(cs.loadCoins()),
+    latestShortCumulativePremiumFraction: BigInt(cs.loadCoins()),
     nextFundingBlockTimestamp: BigInt(cs.loadUint(32)),
     fundingMode: cs.loadUint(2),
     longFundingRate: BigInt(cs.loadUint(32)),
@@ -107,20 +107,20 @@ export function unpackFundingState(cell: Cell): FundingState {
 export function vammConfigToCell(config: VammConfig): Cell {
   return beginCell()
     .storeCoins(config.balance)
-    .storeUint(config.oraclePrice, 128)
+    .storeCoins(config.oraclePrice)
     .storeAddress(config.routerAddr)
     .storeRef(packExchangeSettings(config.exchangeSettings))
     .storeRef(packAmmState(config.ammState))
-    .storeRef(packAmmState(config.ammState))
+    .storeRef(packFundingState(config.fundingState))
     .storeRef(config.positionCode)
     .endCell();
 }
 export function packIncreasePositionBody(body: IncreasePositionBody): Cell {
   return beginCell()
     .storeCoins(body.amount)
-    .storeUint(body.direction, 2)
+    .storeUint(body.direction, 1)
     .storeUint(body.leverage, 32)
-    .storeUint(body.minBaseAssetAmount, 128)
+    .storeCoins(body.minBaseAssetAmount)
     .endCell();
 }
 
@@ -157,8 +157,8 @@ export class Vamm implements Contract {
     return beginCell()
       .storeUint(VammOpcodes.closePosition, 32)
       .storeUint(opts.queryID ?? 0, 64)
-      .storeUint(opts.size ?? opts.oldPosition.size, 128)
-      .storeUint(opts.minQuoteAssetAmount ?? 0, 128)
+      .storeInt(opts.size ?? opts.oldPosition.size, 128)
+      .storeCoins(opts.minQuoteAssetAmount ?? 0)
       .storeBit(opts.addToMargin ?? false)
       .storeRef(packPositionData(opts.oldPosition))
       .endCell();
