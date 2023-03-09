@@ -3,7 +3,7 @@ import { Address, beginCell, Cell } from 'ton';
 const stablecoinDecimals: number = 10 ** 6;
 
 export function toStablecoin(n: number): bigint {
-  return BigInt(Math.floor(n * stablecoinDecimals));
+  return BigInt(Math.round(n * stablecoinDecimals));
 }
 
 export const tonDeepLink = ({

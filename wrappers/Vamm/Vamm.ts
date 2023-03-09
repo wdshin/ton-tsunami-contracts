@@ -120,7 +120,7 @@ export function packIncreasePositionBody(body: IncreasePositionBody): Cell {
     .storeCoins(body.amount)
     .storeUint(body.direction, 1)
     .storeUint(body.leverage, 32)
-    .storeCoins(body.minBaseAssetAmount)
+    .storeCoins(body.minBaseAssetAmount ?? 0)
     .endCell();
 }
 
@@ -199,6 +199,26 @@ export class Vamm implements Contract {
     await provider.internal(via, {
       value,
       body: beginCell().endCell(),
+    });
+  }
+
+  async sendSetOraclePrice(
+    provider: ContractProvider,
+    via: Sender,
+    opts: {
+      value: bigint;
+      queryID?: number;
+      price: bigint;
+    }
+  ) {
+    await provider.internal(via, {
+      value: opts.value,
+      sendMode: SendMode.PAY_GAS_SEPARATELY,
+      body: beginCell()
+        .storeUint(VammOpcodes.tempSetPrice, 32)
+        .storeUint(opts.queryID ?? 0, 64)
+        .storeCoins(opts.price)
+        .endCell(),
     });
   }
 

@@ -64,7 +64,7 @@ export type VammConfig = {
 export type IncreasePositionBody = {
   direction: Direction;
   leverage: bigint;
-  minBaseAssetAmount: bigint;
+  minBaseAssetAmount?: bigint;
   amount: bigint;
 };
 
