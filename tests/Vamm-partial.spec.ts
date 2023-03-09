@@ -96,23 +96,29 @@ describe('vAMM should be able to partially close position', () => {
       const closeResult = await vamm.sendClosePosition(longerPosition.getSender(), {
         value: toNano('0.2'),
         oldPosition: lastLongerPosition,
-        size: 52442458n,
+        size: 52442458n, // Almost 100% close positions
       });
+      const newPosition = getAndUnpackPosition(closeResult.events, 2);
+      lastLongerPosition = newPosition;
+
       const withdrawMsg = getAndUnpackWithdrawMessage(closeResult.events, 1);
       expect(toStableFloat(withdrawMsg.amount)).toBeCloseTo(1481.8, 0.1); // Received: 1485.873766
     }
 
     await sleep(1100);
-    await vamm.sendClosePosition(longerPosition.getSender(), {
+    const closeResult = await vamm.sendClosePosition(longerPosition.getSender(), {
       value: toNano('0.2'),
       oldPosition: lastLongerPosition,
     });
 
     const { ammState } = await vamm.getAmmData();
 
+    const closePosition = getAndUnpackPosition(closeResult.events, 2);
+    lastLongerPosition = closePosition;
+
     console.log({ ammState });
 
     expect(toStableFloat(ammState.openInterestLong)).toBeCloseTo(0, 0.01);
-    expect(toStableFloat(ammState.openInterestShort)).toBeCloseTo(0, 0.01); //  Received: 104.894501
+    expect(toStableFloat(ammState.openInterestShort)).toBeCloseTo(0, 0.01);
   });
 });
