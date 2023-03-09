@@ -1,4 +1,5 @@
 import { EventMessageSent, Event } from '@ton-community/sandbox/dist/event/Event';
+import { Address } from 'ton-core';
 import { PositionData, unpackPositionData } from '../wrappers/TraderPositionWallet';
 import { unpackWithdrawMessage } from '../wrappers/Vamm';
 
@@ -15,4 +16,16 @@ export function getAndUnpackPosition(events: Event[], index = -1): PositionData 
 
 export function getAndUnpackWithdrawMessage(events: Event[], index = -1) {
   return unpackWithdrawMessage(extractEventAtIndex(events, index).body);
+}
+
+export function getInitPosition(traderAddress: Address): PositionData {
+  return {
+    size: 0n,
+    margin: 0n,
+    openNotional: 0n,
+    lastUpdatedCumulativePremium: 0n,
+    fee: 0n,
+    lastUpdatedTimestamp: 0n,
+    traderAddress,
+  };
 }

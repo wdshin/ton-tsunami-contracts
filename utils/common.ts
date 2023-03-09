@@ -6,6 +6,10 @@ export function toStablecoin(n: number): bigint {
   return BigInt(Math.round(n * stablecoinDecimals));
 }
 
+export function toStablecoinFloat(value: bigint) {
+  return Number(value) / 10 ** 6;
+}
+
 export const tonDeepLink = ({
   address,
   amount,

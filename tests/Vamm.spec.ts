@@ -7,17 +7,13 @@ import { sleep } from '@ton-community/blueprint/dist/utils';
 import { Direction, IncreasePositionBody, Vamm } from '../wrappers/Vamm';
 import { initVammData } from '../wrappers/Vamm/Vamm.data';
 import { PositionData } from '../wrappers/TraderPositionWallet';
-import { getAndUnpackPosition, getAndUnpackWithdrawMessage, toStablecoin } from '../utils';
+import {
+  getAndUnpackPosition,
+  getAndUnpackWithdrawMessage,
+  getInitPosition,
+  toStablecoin,
+} from '../utils';
 import { extractEvents } from '@ton-community/sandbox/dist/event/Event';
-
-const emptyPosition = {
-  size: 0n,
-  margin: 0n,
-  openNotional: 0n,
-  lastUpdatedCumulativePremium: 0n,
-  fee: 0n,
-  lastUpdatedTimestamp: 0n,
-};
 
 describe('vAMM should work with positive funding', () => {
   let blockchain: Blockchain;
@@ -41,11 +37,11 @@ describe('vAMM should work with positive funding', () => {
 
     longer = await blockchain.treasury('longer');
     longerPosition = await blockchain.treasury('longerPosition');
-    lastLongerPosition = { ...emptyPosition, traderAddress: longer.address };
+    lastLongerPosition = getInitPosition(longer.address);
 
     shorter = await blockchain.treasury('shorter');
     shorterPosition = await blockchain.treasury('shorterPosition');
-    lastShorterPosition = { ...emptyPosition, traderAddress: shorter.address };
+    lastShorterPosition = getInitPosition(shorter.address);
 
     router = await blockchain.treasury('router');
     vamm = blockchain.openContract(

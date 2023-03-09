@@ -7,21 +7,14 @@ import { toNano } from 'ton-core';
 import { Direction, Vamm } from '../wrappers/Vamm';
 import { initVammData } from '../wrappers/Vamm/Vamm.data';
 import { PositionData } from '../wrappers/TraderPositionWallet';
-import { getAndUnpackPosition, getAndUnpackWithdrawMessage, toStablecoin } from '../utils';
+import {
+  getAndUnpackPosition,
+  getAndUnpackWithdrawMessage,
+  getInitPosition,
+  toStablecoin,
+  toStablecoinFloat,
+} from '../utils';
 import { extractEvents } from '@ton-community/sandbox/dist/event/Event';
-
-function toStableFloat(value: bigint) {
-  return Number(value) / 10 ** 6;
-}
-
-const emptyPosition = {
-  size: 0n,
-  margin: 0n,
-  openNotional: 0n,
-  lastUpdatedCumulativePremium: 0n,
-  fee: 0n,
-  lastUpdatedTimestamp: 0n,
-};
 
 describe('vAMM should be able to partially close position', () => {
   let blockchain: Blockchain;
@@ -45,11 +38,11 @@ describe('vAMM should be able to partially close position', () => {
 
     longer = await blockchain.treasury('longer');
     longerPosition = await blockchain.treasury('longerPosition');
-    lastLongerPosition = { ...emptyPosition, traderAddress: longer.address };
+    lastLongerPosition = getInitPosition(longer.address);
 
     shorter = await blockchain.treasury('shorter');
     shorterPosition = await blockchain.treasury('shorterPosition');
-    lastShorterPosition = { ...emptyPosition, traderAddress: shorter.address };
+    lastShorterPosition = getInitPosition(shorter.address);
 
     router = await blockchain.treasury('router');
     vamm = blockchain.openContract(
@@ -102,7 +95,7 @@ describe('vAMM should be able to partially close position', () => {
       lastLongerPosition = newPosition;
 
       const withdrawMsg = getAndUnpackWithdrawMessage(closeResult.events, 1);
-      expect(toStableFloat(withdrawMsg.amount)).toBeCloseTo(1481.8, 0.1); // Received: 1485.873766
+      expect(toStablecoinFloat(withdrawMsg.amount)).toBeCloseTo(1481.8, 0.1); // Received: 1485.873766
     }
 
     await sleep(1100);
@@ -118,7 +111,7 @@ describe('vAMM should be able to partially close position', () => {
 
     console.log({ ammState });
 
-    expect(toStableFloat(ammState.openInterestLong)).toBeCloseTo(0, 0.01);
-    expect(toStableFloat(ammState.openInterestShort)).toBeCloseTo(0, 0.01);
+    expect(toStablecoinFloat(ammState.openInterestLong)).toBeCloseTo(0, 0.01);
+    expect(toStablecoinFloat(ammState.openInterestShort)).toBeCloseTo(0, 0.01);
   });
 });
