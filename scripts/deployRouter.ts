@@ -2,6 +2,8 @@ import { Address, toNano } from 'ton-core';
 import { Router } from '../wrappers/Router/Router';
 import { compile, NetworkProvider } from '@ton-community/blueprint';
 import { JettonWallet } from '../wrappers/JettonWallet/JettonWallet';
+import { Vamm } from '../wrappers/Vamm';
+import { sleep } from '../utils';
 
 export async function run(provider: NetworkProvider) {
   const deployerAddress = provider.sender().address!;
@@ -11,7 +13,7 @@ export async function run(provider: NetworkProvider) {
       traderPositionWalletCode: await compile('TraderPositionWallet'),
       adminAddress: deployerAddress,
       whitelistedJettonWalletAddress: Address.parse(
-        'EQAdeaoRSNRoV7ABKgr-gx70pSG6XTTPyITnGLTUZNevSYCO' // any, will be overwritten
+        'EQBKC9p-r_n6ViJqmxTG5QlytLMaDhyQ9DRb5i1xEcfI5JJE' // any, will be overwritten
       ),
     },
     await compile('Router')
@@ -33,6 +35,7 @@ export async function run(provider: NetworkProvider) {
   const ammAddr = await openedContract.getAmmAddress();
   console.log('Amm address: ');
   console.log(ammAddr.toString({ urlSafe: true, bounceable: true }));
+  const openedAmm = provider.open(Vamm.createFromAddress(ammAddr));
 
   const initRouterData = await openedContract.getRouterData();
   console.log('Router admin address: ');
@@ -49,4 +52,8 @@ export async function run(provider: NetworkProvider) {
     balance: 10000,
     price: 2.5,
   });
+  await sleep(12000);
+  const ammData = await openedAmm.getAmmData();
+
+  console.log(ammData);
 }

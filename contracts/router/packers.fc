@@ -28,7 +28,7 @@ cell pack_vamm_data(slice router_addr, cell trader_position_wallet_code) inline_
     pack_amm_state(
       0, ;; quoteAssetReserve
       0, ;; baseAssetReserve
-      100000, ;; quoteAssetWeight 1 * 100000
+      1000000, ;; quoteAssetWeight 1 * 1000000
       0, ;; totalLongPositionSize
       0, ;; totalShortPositionSize
       0, ;; openInterestShort

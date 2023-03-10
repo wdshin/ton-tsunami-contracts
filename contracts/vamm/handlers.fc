@@ -240,7 +240,6 @@
 
   cell new_position_ref = pack_position_data(newPositionSize != 0 ? (trader_addr, newPositionSize, newPositionMargin, newPositionOpenNotional, newPositionLstUpdCPF, oldPositionFee, now()) : (trader_addr, 0, 0, 0, 0, 0, 0));
   ;; TODO: calculate value and mode
-  update_position(new_position_ref, op::close_position, query_id, sender_addr, value_to_sent, mode::normal);
 
   ;; TODO: need this? 
 
@@ -251,9 +250,9 @@
   db::openInterestLong = totalLongOpenInterestAfter;
   db::openInterestShort = totalShortOpenInterestAfter;
 
-  int ammNewBalance = max(ammBalance, 0);
-  db::balance = ammNewBalance;
+  db::balance = max(ammBalance, 0);
 
+  update_position(new_position_ref, op::close_position, query_id, sender_addr, value_to_sent, mode::normal);
   ;;   TODO: transfer fee here
   ;;   transferFee(feeToStakers)
   save_data();
