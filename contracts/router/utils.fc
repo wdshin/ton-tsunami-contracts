@@ -2,6 +2,8 @@
 #include "./packers.fc";
 #include "./op-codes.fc";
 
+#include "../oracle/op-codes.fc";
+
 #include "../shared/utils.fc";
 #include "../shared/messages.fc";
 #include "../shared/jetton-op-codes.fc";
@@ -20,6 +22,20 @@
     .end_cell();
 
   send_simple_message_ref(value, ctx::whitelisted_jetton_wallet_address, body, mode);
+}
+
+() request_position_and_price(int inner_op, slice provide_position_redirect_addr, slice oracle_redirect_addr, int query_id, slice payload_s, slice position_addr, cell position_state_init) impure inline {
+  var body = begin_cell()
+    .store_uint(op::provide_position, 32)
+    .store_slice(provide_position_redirect_addr) ;; position redirect -> oracle address
+    .store_uint(op::oracle_price_request, 32)
+    .store_slice(oracle_redirect_addr) ;; position redirect -> oracle address
+    .store_uint(inner_op, 32)
+    .store_uint(query_id, 64)
+    .store_slice(payload_s)
+    .end_cell(); ;; TODO: pass builder instead of cell ? 
+  
+  send_message_with_stateinit(0, position_addr, position_state_init, body, mode::carry_remaining_gas);
 }
 
 () request_position(int inner_op, int query_id, slice payload_s, slice position_addr, cell position_state_init) impure inline {

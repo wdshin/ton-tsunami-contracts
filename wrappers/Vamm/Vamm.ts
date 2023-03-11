@@ -8,6 +8,9 @@ import {
   Sender,
   SendMode,
 } from 'ton';
+import { addressToCell } from '../../utils';
+import { packOraclePrice } from '../Oracle/Oracle';
+import { OraclePrice } from '../Oracle/Oracle.types';
 import { packPositionData, PositionData } from '../TraderPositionWallet';
 
 import {
@@ -17,6 +20,7 @@ import {
   VammOpcodes,
   IncreasePositionBody,
   FundingState,
+  VammExtraData,
 } from './Vamm.types';
 
 export function packExchangeSettings(settings: ExchangeSettings) {
@@ -104,20 +108,42 @@ export function unpackFundingState(cell: Cell): FundingState {
   };
 }
 
+export function packVammExtraData(settings: VammExtraData) {
+  return beginCell()
+    .storeAddress(settings.vaultAddress)
+    .storeAddress(settings.adminAddress)
+    .storeBit(settings.paused)
+    .storeBit(settings.closedOnly)
+    .storeUint(settings.indexId, 16)
+    .storeRef(settings.positionWalletCode)
+    .endCell();
+}
+
+export function unpackVammExtraData(cell: Cell): VammExtraData {
+  const cs = cell.beginParse();
+  return {
+    vaultAddress: cs.loadAddress(),
+    adminAddress: cs.loadAddress(),
+    paused: cs.loadBit(),
+    closedOnly: cs.loadBit(),
+    indexId: cs.loadUint(16),
+    positionWalletCode: cs.loadRef(),
+  };
+}
+
 export function vammConfigToCell(config: VammConfig): Cell {
   return beginCell()
     .storeCoins(config.balance)
-    .storeCoins(config.oraclePrice)
-    .storeAddress(config.routerAddr)
+    .storeAddress(config.oracleAddress)
+    .storeAddress(config.jettonWalletAddress)
     .storeRef(packExchangeSettings(config.exchangeSettings))
     .storeRef(packAmmState(config.ammState))
     .storeRef(packFundingState(config.fundingState))
-    .storeRef(config.positionCode)
+    .storeRef(packVammExtraData(config.extraData))
     .endCell();
 }
 export function packIncreasePositionBody(body: IncreasePositionBody): Cell {
   return beginCell()
-    .storeCoins(body.amount)
     .storeUint(body.direction, 1)
     .storeUint(body.leverage, 32)
     .storeCoins(body.minBaseAssetAmount ?? 0)
@@ -149,6 +175,21 @@ export class Vamm implements Contract {
 
   static closePosition(opts: {
     queryID?: number;
+    addToMargin?: boolean;
+    size: bigint;
+    minQuoteAssetAmount?: bigint;
+  }) {
+    return beginCell()
+      .storeUint(VammOpcodes.closePosition, 32)
+      .storeUint(opts.queryID ?? 0, 64)
+      .storeInt(opts.size, 128)
+      .storeCoins(opts.minQuoteAssetAmount ?? 0)
+      .storeBit(opts.addToMargin ?? false)
+      .endCell();
+  }
+
+  static closePositionRaw(opts: {
+    queryID?: number;
     oldPosition: PositionData;
     addToMargin?: boolean;
     size?: bigint;
@@ -160,19 +201,6 @@ export class Vamm implements Contract {
       .storeInt(opts.size ?? opts.oldPosition.size, 128)
       .storeCoins(opts.minQuoteAssetAmount ?? 0)
       .storeBit(opts.addToMargin ?? false)
-      .storeRef(packPositionData(opts.oldPosition))
-      .endCell();
-  }
-
-  static increasePosition(opts: {
-    queryID?: number;
-    oldPosition: PositionData;
-    increasePositionBody: IncreasePositionBody;
-  }) {
-    return beginCell()
-      .storeUint(VammOpcodes.increasePosition, 32)
-      .storeUint(opts.queryID ?? 0, 64)
-      .storeSlice(packIncreasePositionBody(opts.increasePositionBody).asSlice())
       .storeRef(packPositionData(opts.oldPosition))
       .endCell();
   }
@@ -195,10 +223,68 @@ export class Vamm implements Contract {
       .endCell();
   }
 
-  async sendDeploy(provider: ContractProvider, via: Sender, value: bigint) {
+  static setJettonWalletAddress(opts: { queryID?: number; address: Address }) {
+    return beginCell()
+      .storeUint(VammOpcodes.setJettonWalletAddress, 32)
+      .storeUint(opts.queryID ?? 0, 64)
+      .storeAddress(opts.address)
+      .endCell();
+  }
+
+  static increasePosition(opts: IncreasePositionBody) {
+    return beginCell()
+      .storeUint(VammOpcodes.increasePosition, 32)
+      .storeSlice(packIncreasePositionBody(opts).beginParse())
+      .endCell();
+  }
+
+  static increasePositionRaw(opts: {
+    queryID?: number;
+    amount: bigint;
+    oracleRedirectAddress: Address;
+    oldPosition: PositionData;
+    priceData: OraclePrice;
+    increasePositionBody: IncreasePositionBody;
+  }) {
+    return beginCell()
+      .storeUint(VammOpcodes.oraclePriceResponse, 32)
+      .storeAddress(opts.oracleRedirectAddress)
+      .storeUint(VammOpcodes.increasePosition, 32)
+      .storeUint(opts.queryID ?? 0, 64)
+      .storeCoins(opts.amount)
+      .storeRef(packIncreasePositionBody(opts.increasePositionBody))
+      .storeRef(packPositionData(opts.oldPosition))
+      .storeRef(packOraclePrice(opts.priceData))
+      .endCell();
+  }
+
+  async sendDeploy(
+    provider: ContractProvider,
+    via: Sender,
+    value: bigint,
+    jettonWalletAddress: Address
+  ) {
     await provider.internal(via, {
       value,
-      body: beginCell().endCell(),
+      body: Vamm.setJettonWalletAddress({ address: jettonWalletAddress }),
+    });
+  }
+
+  async sendClosePosition(
+    provider: ContractProvider,
+    via: Sender,
+    opts: {
+      value: bigint;
+      queryID?: number;
+      addToMargin: boolean;
+      size: bigint;
+      minQuoteAssetAmount: bigint;
+    }
+  ) {
+    await provider.internal(via, {
+      value: opts.value,
+      sendMode: SendMode.PAY_GAS_SEPARATELY,
+      body: Vamm.closePosition(opts),
     });
   }
 
@@ -228,14 +314,17 @@ export class Vamm implements Contract {
     opts: {
       value: bigint;
       queryID?: number;
+      amount: bigint;
+      oracleRedirectAddress: Address;
       oldPosition: PositionData;
+      priceData: OraclePrice;
       increasePositionBody: IncreasePositionBody;
     }
   ) {
     await provider.internal(via, {
       value: opts.value,
       sendMode: SendMode.PAY_GAS_SEPARATELY,
-      body: Vamm.increasePosition(opts),
+      body: Vamm.increasePositionRaw(opts),
     });
   }
 
@@ -273,7 +362,7 @@ export class Vamm implements Contract {
     });
   }
 
-  async sendClosePosition(
+  async sendClosePositionRaw(
     provider: ContractProvider,
     via: Sender,
     opts: {
@@ -288,21 +377,31 @@ export class Vamm implements Contract {
     await provider.internal(via, {
       value: opts.value,
       sendMode: SendMode.PAY_GAS_SEPARATELY,
-      body: Vamm.closePosition(opts),
+      body: Vamm.closePositionRaw(opts),
     });
   }
 
-  async getAmmData(provider: ContractProvider): Promise<Omit<VammConfig, 'positionCode'>> {
+  async getAmmData(provider: ContractProvider): Promise<VammConfig> {
     const { stack } = await provider.get('get_amm_data', []);
 
     return {
       balance: stack.readBigNumber(),
-      oraclePrice: stack.readBigNumber(),
-      routerAddr: stack.readAddress(),
+      oracleAddress: stack.readAddress(),
+      jettonWalletAddress: stack.readAddress(),
       exchangeSettings: unpackExchangeSettings(stack.readCell()),
       ammState: unpackAmmState(stack.readCell()),
       fundingState: unpackFundingState(stack.readCell()),
-      // positionCode: stack.readCell(),
+      extraData: unpackVammExtraData(stack.readCell()),
     };
+  }
+
+  async getTraderPositionAddress(provider: ContractProvider, traderAddress: Address) {
+    const result = await provider.get('get_trader_position_address', [
+      {
+        type: 'slice',
+        cell: addressToCell(traderAddress),
+      },
+    ]);
+    return result.stack.readAddress();
   }
 }

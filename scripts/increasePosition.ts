@@ -3,16 +3,15 @@ import { NetworkProvider } from '@ton-community/blueprint';
 import { Router } from '../wrappers/Router/Router';
 import { toStablecoin } from '../utils';
 import { JettonWallet } from '../wrappers/JettonWallet/JettonWallet';
-import { Direction } from '../wrappers/Vamm';
+import { Direction, Vamm } from '../wrappers/Vamm';
 
 const usdcAddr = Address.parse('kQBaYzBs3DaCEFtaE8fwQat_74IPBaLRQOTgZgPTPOVUDsFb');
-const fakeUsdAddr = Address.parse('kQDuLkq23W-n4U200Ppqn-6ZLcGa2CTqa3KKgrMB0ZpwqUO_');
 
 export async function run(provider: NetworkProvider) {
-  const routerAddress = Address.parse('EQD235QccnFL3T3ZaHewQe-UNROmhJjn3QDqtNQJQbGWsVuk');
+  const vammAddress = Address.parse('EQBvysH8tXBOTKNqBuEmbZeYiPVaHXoIsdbGP2Q3nSzsLIMd');
 
-  const openedRouter = provider.open(Router.createFromAddress(routerAddress));
-  const positionAddres = await openedRouter.getTraderPositionAddress(provider.sender().address!);
+  const openedVamm = provider.open(Vamm.createFromAddress(vammAddress));
+  const positionAddres = await openedVamm.getTraderPositionAddress(provider.sender().address!);
   console.log('Position address');
   console.log(positionAddres.toString());
 
@@ -23,30 +22,16 @@ export async function run(provider: NetworkProvider) {
   );
   const openedJW = provider.open(usdcJW);
 
-  const forwardPayload = Router.increasePosition({
+  const forwardPayload = Vamm.increasePosition({
     direction: Direction.long,
     leverage: toStablecoin(3),
     minBaseAssetAmount: toStablecoin(0.15),
   });
 
-  // const usdfJW = await JettonWallet.createFromMaster(
-  //   provider.api(),
-  //   fakeUsdAddr,
-  //   provider.sender().address!
-  // );
-  // const openedFakeJW = provider.open(usdfJW);
-
-  // await openedFakeJW.sendTransfer(provider.sender(), toNano('0.3'), {
-  //   amount: toStablecoin(100),
-  //   destination: routerAddress,
-  //   forwardAmount: toNano('0.255'),
-  //   forwardPayload,
-  // });
-
-  await openedJW.sendTransfer(provider.sender(), toNano('0.3'), {
+  await openedJW.sendTransfer(provider.sender(), toNano('0.2'), {
     amount: toStablecoin(100),
-    destination: routerAddress,
-    forwardAmount: toNano('0.25'),
+    destination: vammAddress,
+    forwardAmount: toNano('0.15'),
     responseDestination: provider.sender().address,
     forwardPayload,
   });

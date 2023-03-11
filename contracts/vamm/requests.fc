@@ -1,0 +1,97 @@
+#include "./storage.fc";
+#include "./packers.fc";
+#include "./op-codes.fc";
+
+#include "../oracle/op-codes.fc";
+
+#include "../shared/utils.fc";
+#include "../shared/messages.fc";
+#include "../shared/jetton-op-codes.fc";
+
+
+() request_withdraw(int query_id, int amount, slice to, int value, int mode) impure inline {
+  var body = begin_cell()
+    .store_uint(op::transfer, 32)
+    .store_uint(query_id, 64)
+    .store_coins(amount)
+    .store_slice(to) ;; destination
+    .store_slice(to) ;; response_destination
+    .store_uint(0, 1)
+    .store_coins(0)
+    .store_uint(0, 1)
+    .end_cell();
+
+  send_simple_message_ref(value, db::jetton_wallet_addr, body, mode);
+}
+
+() request_position_and_price(slice position_redirect_addr, int inner_op, int query_id, slice payload_s, slice position_addr, cell position_state_init) impure inline {
+  var body = begin_cell()
+    .store_uint(op::provide_position, 32)
+    .store_slice(position_redirect_addr) ;; position redirect -> oracle address
+    .store_uint(op::oracle_price_request, 32)
+    .store_slice(my_address()) ;; oracle redirect -> vamm address
+    .store_uint(inner_op, 32)
+    .store_uint(query_id, 64)
+  ;; .store_slice(payload_s) TODO: send payload ref more in a more elegant way then below:
+    .store_ref(begin_cell().store_slice(payload_s).end_cell())
+    .end_cell(); ;; TODO: pass builder instead of cell ? 
+  
+  send_message_with_stateinit(0, position_addr, position_state_init, body, mode::carry_remaining_gas);
+}
+
+() request_position_and_price_with_amount(slice position_redirect_addr, int inner_op, int query_id, int amount, slice payload_s, slice position_addr, cell position_state_init) impure inline {
+  var body = begin_cell()
+    .store_uint(op::provide_position, 32)
+    .store_slice(position_redirect_addr) ;; position redirect -> oracle address
+    .store_uint(op::oracle_price_request, 32)
+    .store_slice(my_address()) ;; oracle redirect -> vamm address
+    .store_uint(inner_op, 32)
+    .store_uint(query_id, 64)
+    .store_coins(amount)
+  ;; .store_slice(payload_s) TODO: send payload ref more in a more elegant way then below:
+    .store_ref(begin_cell().store_slice(payload_s).end_cell())
+    .end_cell(); ;; TODO: pass builder instead of cell ? 
+  
+  send_message_with_stateinit(0, position_addr, position_state_init, body, mode::carry_remaining_gas);
+}
+
+() request_position(int inner_op, int query_id, slice payload_s, slice position_addr, cell position_state_init) impure inline {
+  var body = begin_cell()
+    .store_uint(op::provide_position, 32)
+    .store_uint(inner_op, 32)
+    .store_uint(query_id, 64)
+    .store_slice(payload_s)
+    .end_cell(); ;; TODO: pass builder instead of cell ? 
+  
+  send_message_with_stateinit(0, position_addr, position_state_init, body, mode::carry_remaining_gas);
+}
+
+() request_position_with_amount(int inner_op, int query_id, int amount, slice payload_s, slice position_addr, cell position_state_init) impure inline {
+  var body = begin_cell()
+    .store_uint(op::provide_position, 32)
+    .store_uint(inner_op, 32)
+    .store_uint(query_id, 64)
+    .store_coins(amount)
+    .store_slice(payload_s)
+    .end_cell(); ;; TODO: pass builder instead of cell ? 
+  
+  send_message_with_stateinit(0, position_addr, position_state_init, body, mode::carry_remaining_gas);
+}
+
+() request::close_position(slice in_msg_body, slice sender_addr, int query_id) impure inline {
+  load_data();
+
+  cell position_wallet_code = db::extra_data_cell.begin_parse().preload_ref();
+  var (cell position_state_init, slice trader_position_addr) = get_position_state_init_and_address(position_wallet_code, my_address(), sender_addr);
+
+  request_position_and_price(db::oracle_addr, op::close_position, query_id, in_msg_body, trader_position_addr, position_state_init);
+}
+
+() request::remove_margin(slice in_msg_body, slice sender_addr, int query_id) impure inline {
+  load_data();
+
+  cell position_wallet_code = db::extra_data_cell.begin_parse().preload_ref();
+  var (cell position_state_init, slice trader_position_addr) = get_position_state_init_and_address(position_wallet_code, my_address(), sender_addr);
+
+  request_position_and_price(db::oracle_addr, op::remove_margin, query_id, in_msg_body, trader_position_addr, position_state_init);
+}

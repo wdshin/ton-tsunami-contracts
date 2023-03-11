@@ -1,0 +1,3 @@
+const op::set_oracle_price = "op::set_oracle_price"c;
+const op::oracle_price_request = "op::oracle_price_request"c;
+const op::oracle_price_response = "op::oracle_price_response"c;

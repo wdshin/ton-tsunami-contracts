@@ -2,7 +2,7 @@
 
 #include "shared/stdlib.fc";
 #include "shared/jetton-utils.fc";
-;; #include "shared/op-codes.fc";
+#include "shared/jetton-op-codes.fc";
 #include "shared/messages.fc";
 
 #include "vamm/op-codes.fc";
@@ -11,9 +11,10 @@
 #include "vamm/errors.fc";
 #include "vamm/utils.fc";
 #include "vamm/handlers.fc";
+#include "vamm/requests.fc";
 
 #include "trader_position_wallet/packers.fc";
-;; #include "oracle/op-codes.fc";
+#include "oracle/op-codes.fc";
 
 () recv_internal(int my_balance, int msg_value, cell in_msg_full, slice in_msg_body) impure {
     if (in_msg_body.slice_empty?()) { ;; ignore all empty messages
@@ -26,60 +27,73 @@
     slice sender_addr = cs~load_msg_addr();
 
     int op = in_msg_body~load_uint(32);
+
+    if (op == op::oracle_price_response) {
+        handle::oracle_response(in_msg_body, sender_addr, my_balance, msg_value);
+        ;; handle::transfer_notification(in_msg_body, sender_addr, query_id);
+        return ();
+    }
+
     int query_id = in_msg_body~load_uint(64);
 
-    if (op == op::temp_set_price) {
-        load_data();
-
-        int new_price = in_msg_body~load_coins();
-        var (
-            int newQuoteAssetWeight
-        ) = getSyncTerminalPrice(new_price, db::quoteAssetReserve, db::baseAssetReserve);
-
-        db::quoteAssetWeight = newQuoteAssetWeight;
-        db::oraclePrice = new_price;
-        
-        save_data();
+    if (op == op::transfer_notification) {
+        handle::transfer_notification(in_msg_body, sender_addr, query_id);
         return ();
     }
 
-    if (op == op::temp_set_amm_data) {
-        load_data();
-        var (db::balance, db::oraclePrice, db::quoteAssetReserve, db::baseAssetReserve) = (in_msg_body~load_coins(), in_msg_body~load_coins(), in_msg_body~load_coins(), in_msg_body~load_coins());
-        save_data();
-        return ();
-    }
-
-    if (op == op::increase_position) {
-        handle::increase_position(in_msg_body, sender_addr, query_id, msg_value);
-        return ();
-    }
-
-    if (op == op::add_margin) {
-        handle::add_margin(in_msg_body, sender_addr, query_id, msg_value);
-        return ();
-    }
-    
     if (op == op::close_position) {
-        handle::close_position(in_msg_body, sender_addr, query_id, my_balance, msg_value);
+        request::close_position(in_msg_body, sender_addr, query_id);
         return ();
     }
-
 
     if (op == op::remove_margin) {
-        handle::remove_margin(in_msg_body, sender_addr, query_id);
+        request::remove_margin(in_msg_body, sender_addr, query_id);
         return ();
     }
 
-    if (op == op::pay_funding) {
-        handle::pay_funding(in_msg_body, sender_addr, query_id);
+    ;; if (op == op::temp_set_price) {
+    ;;     load_data();
+
+    ;;     int new_price = in_msg_body~load_coins();
+    ;;     var (
+    ;;         int newQuoteAssetWeight
+    ;;     ) = getSyncTerminalPrice(new_price, db::quoteAssetReserve, db::baseAssetReserve);
+
+    ;;     db::quoteAssetWeight = newQuoteAssetWeight;
+    ;;     db::oraclePrice = new_price;
+        
+    ;;     save_data();
+    ;;     return ();
+    ;; }
+
+
+    if (op == op::set_jetton_wallet_address) {
+        ;; TODO: add init check
+        load_data();
+        slice db::jetton_wallet_addr = in_msg_body~load_msg_addr();
+        save_data();
         return ();
     }
+
+    ;; TODO: remove later
+    if (op == op::temp_set_amm_data) {
+        load_data();
+        var (db::oracle_addr, db::jetton_wallet_addr, db::balance, db::quoteAssetReserve, db::baseAssetReserve) = (in_msg_body~load_msg_addr(), in_msg_body~load_msg_addr(), in_msg_body~load_coins(), in_msg_body~load_coins(), in_msg_body~load_coins());
+        save_data();
+        return ();
+    }
+
 
     throw(0xffff);
 }
 
 _ get_amm_data() method_id {
-    var (int balance, int oraclePrice, slice router_addr, cell exchange_settings, cell amm_state, cell funding_state, _) = load_raw_data();
-    return (balance, oraclePrice, router_addr, exchange_settings, amm_state, funding_state);
+    return load_raw_data();
+}
+
+slice get_trader_position_address(slice trader_addr) method_id {
+    load_data();
+    var (_, _, _, _, _, cell position_wallet_code) = unpack_extra_data(db::extra_data_cell.begin_parse());
+    var (_, slice trader_position_addr) = get_position_state_init_and_address(position_wallet_code, my_address(), trader_addr);
+    return trader_position_addr;
 }

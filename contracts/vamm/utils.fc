@@ -15,11 +15,15 @@ int muld(int _x, int _y) inline {
   return muldivr(_x, _y, DECIMAL_UNIT);
 }
 
-;; TODO: use it in vamm handlers when receiving msg from position wallet
-() require_position_address(slice sender_address, slice trader_addr) impure inline {
-  var (_, slice position_addr) = get_position_state_init_and_address(db::trader_position_wallet_code, my_address(), trader_addr);
-  throw_unless(123, equal_slices(sender_address, position_addr));
+int get_position_fee(int old_fee) inline {
+  return old_fee ? old_fee : db::fee;
 }
+
+;; TODO: use it in vamm handlers when receiving msg from position wallet
+;; () require_position_address(slice sender_address, slice trader_addr) impure inline {
+;;   var (_, slice position_addr) = get_position_state_init_and_address(db::trader_position_wallet_code, my_address(), trader_addr);
+;;   throw_unless(123, equal_slices(sender_address, position_addr));
+;; }
 
 cell pack_position_init_data(slice trader_addr, slice vamm_addr) {
   return begin_cell()
@@ -29,15 +33,15 @@ cell pack_position_init_data(slice trader_addr, slice vamm_addr) {
           .end_cell();
 }
 
-() withdraw (slice trader_addr, int jetton_amount, int value, int mode) impure inline {
-  var body = begin_cell()
-    .store_uint(op::withdraw, 32)
-    .store_uint(0, 64) ;; TODO: query_id
-    .store_coins(jetton_amount)
-    .store_slice(trader_addr);
+;; () withdraw (slice trader_addr, int jetton_amount, int value, int mode) impure inline {
+;;   var body = begin_cell()
+;;     .store_uint(op::withdraw, 32)
+;;     .store_uint(0, 64) ;; TODO: query_id
+;;     .store_coins(jetton_amount)
+;;     .store_slice(trader_addr);
 
-  send_simple_message(value, db::router_addr, body, mode);
-}
+;;   send_simple_message(value, db::router_addr, body, mode);
+;; }
 
 _ unlock_position(slice sender_addr, int value, int mode) impure inline {
   var body = begin_cell()
@@ -131,6 +135,13 @@ _ swapInput(int _isAdd, int _quoteAssetAmount) inline_ref {
   int _qtAstW = db::quoteAssetWeight;
   int _bsAstW = DECIMAL_UNIT;
 
+  ~dump(600);
+  ~dump(_qtAstR);
+  ~dump(_bsAstR);
+  ~dump(_qtAstW);
+  ~dump(601);
+
+
   int quoteAssetAmountAdjusted = _quoteAssetAmount.divd(_qtAstW);
 
   int k = muld(_qtAstR, _bsAstR);
@@ -223,7 +234,7 @@ _ getSyncTerminalPrice(int _terminalPrice, int _qtAstR, int _bsAstR) inline {
     ;; Compute new qW and bW
     int newQtAstW = getQuoteAssetWeight(_bsAstR, _positionSize, _qtAstR, _terminalPrice);
 
-    return (newQtAstW);
+    return newQtAstW;
   }
 }
 
@@ -316,7 +327,8 @@ _ getPositionAdjustedOpenNotional(
   int _quoteAssetReserve,
   int _quoteAssetWeight,
   int _baseAssetReserve,
-  int _baseAssetWeight
+  int _baseAssetWeight,
+  int oraclePrice
 ) inline {
   int positionSizeAbs = abs(_positionSize);
   int isShort = _positionSize < 0;
@@ -332,7 +344,7 @@ _ getPositionAdjustedOpenNotional(
       _baseAssetWeight
     );
   } else {
-    positionNotional = muld(positionSizeAbs, db::oraclePrice);
+    positionNotional = muld(positionSizeAbs, oraclePrice);
   }
 
   return positionNotional;
@@ -345,7 +357,8 @@ _ getPositionNotionalAndUnrealizedPnlByValues(
   int _quoteAssetWeight,
   int _baseAssetReserve,
   int _baseAssetWeight,
-  int _option
+  int _option,
+  int oraclePrice
 ) inline_ref {
   ;; TODO: check _positionSize == 0
   ;; throw("Invalid position size")
@@ -357,7 +370,8 @@ _ getPositionNotionalAndUnrealizedPnlByValues(
     _quoteAssetReserve,
     _quoteAssetWeight,
     _baseAssetReserve,
-    _baseAssetWeight
+    _baseAssetWeight,
+    oraclePrice
   );
 
   int unrealizedPnl = isShort ? (_positionOpenNotional - positionNotional) : (positionNotional - _positionOpenNotional);
@@ -377,10 +391,11 @@ _ getMarginRatioByOption(
   int _positionOpenNotional,
   int _positionLastUpdatedCPF,
   int _positionTimestamp,
-  int _option
+  int _option,
+  int oraclePrice
 ) inline {
 
-  var (int positionNotional, int unrealizedPnl) = getPositionNotionalAndUnrealizedPnlByValues(_positionSize, _positionOpenNotional, db::quoteAssetReserve, db::quoteAssetWeight, db::baseAssetReserve, DECIMAL_UNIT, _option);
+  var (int positionNotional, int unrealizedPnl) = getPositionNotionalAndUnrealizedPnlByValues(_positionSize, _positionOpenNotional, db::quoteAssetReserve, db::quoteAssetWeight, db::baseAssetReserve, DECIMAL_UNIT, _option, oraclePrice);
   var (int remainMargin, int badDebt, _, _) = calcRemainMarginWithFundingPaymentAndRolloverFee(
     _positionSize,
     _positionMargin,
@@ -403,7 +418,9 @@ _ internalClosePosition(
   int _minQuoteAssetAmount,
   int _addToMargin,
   int _checkMaxPriceImpact,
-  int _liquidate) inline_ref {
+  int _liquidate,
+  int oraclePrice
+  ) inline_ref {
   int isLongPosition = oldPositionSize > 0;
   int absOldPositionSize = abs(oldPositionSize);
 
@@ -441,7 +458,8 @@ _ internalClosePosition(
     db::quoteAssetWeight,
     db::baseAssetReserve,
     DECIMAL_UNIT,
-    PNL_OPTION_SPOT
+    PNL_OPTION_SPOT,
+    oraclePrice
   );
 
 
@@ -504,7 +522,7 @@ _ internalClosePosition(
 
     ;; When partially closing a position AND removing part of margin to send to trader, position
     ;; should keep EXACTLY the margin ration it is currently on.
-    int marginRatio = getMarginRatioByOption(oldPositionSize, oldPositionMargin, oldPositionOpenNotional, oldPositionLastUpdatedCPF, oldPositionTimestamp, PNL_OPTION_SPOT);
+    int marginRatio = getMarginRatioByOption(oldPositionSize, oldPositionMargin, oldPositionOpenNotional, oldPositionLastUpdatedCPF, oldPositionTimestamp, PNL_OPTION_SPOT, oraclePrice);
  
     int newPositionMarginWithSameRatio = oldPositionSize > 0 ?
       (muld(newPositionOpenNotional + unrealizedPnlAfter, marginRatio) - unrealizedPnlAfter)
@@ -591,8 +609,7 @@ int getSpotPrice() inline {
   return divd(_quoteAssetReserve.muld(_qtAstW), _baseAssetReserve.muld(_bsAstW));
 }
 
-(int, int, int) getFunding() inline {
-  int underlyingPrice = db::oraclePrice;
+(int, int, int) getFunding(int underlyingPrice) inline {
   int spotPrice = getSpotPrice();
   int premium = spotPrice - underlyingPrice;
   
@@ -641,4 +658,8 @@ int getSpotPrice() inline {
       return (longPremiumFraction, longPremiumFraction, premiumToVault);
     }
   }
+}
+
+() syncTerminalPriceToOracle(int new_price) impure inline {
+  db::quoteAssetWeight = getSyncTerminalPrice(new_price, db::quoteAssetReserve, db::baseAssetReserve);
 }

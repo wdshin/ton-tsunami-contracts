@@ -1,0 +1,18 @@
+(slice, int, cell) load_data() inline {
+  slice ds = get_data().begin_parse();
+  return (
+    ds~load_msg_addr(),       ;; manager_addr
+    ds.preload_uint(16),      ;; index_id
+    ds.preload_ref()          ;; price data
+  );
+}
+
+() save_data(slice manager_addr, int index_id, cell price_data) impure inline {
+  set_data(
+    begin_cell()
+    .store_slice(manager_addr)
+    .store_uint(index_id, 16)
+    .store_ref(price_data)
+    .end_cell()
+  );
+}

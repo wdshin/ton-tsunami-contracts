@@ -1,0 +1,41 @@
+#include "./storage.fc";
+
+int computeNewRate(int _amountOfQuoteAsset) inline {
+  return ctx::totalSupply > 0 ? (ctx::freeBalance + _amountOfQuoteAsset).divd(ctx::totalSupply) : DECIMAL_UNIT;
+}
+
+int lastTimeRewardApplicable() inline {
+  return minv(now(), ctx::periodFinish);
+}
+
+_ rewardPerToken(int _balanceDelta) inline {
+  ifnot (ctx::totalSupply + _balanceDelta) {
+    return ctx::rewardPerTokenStored;
+  }
+
+  int timeInterval = ctx::lastTimeRewardApplicable - lastUpdateTime();
+  int actualTimeInterval = max(timeInterval, 0);
+  int diff = divd(rewardRate() * actualTimeInterval, totalSupply() + _balanceDelta);
+
+  return ctx::rewardPerTokenStored + diff;
+}
+
+_ earned(_staker: String, _balanceDelta: Int) inline {
+  int rewardDelta = rewardPerToken(_balanceDelta) - userRewardPerTokenPaid(_staker);
+  return muld((balanceOf(_staker) + _balanceDelta), rewardDelta) + rewards(_staker);
+}
+
+_ updateReward(slice _staker, int _balanceDelta) inline {
+  int newRewardPerTokenStored = rewardPerToken(_balanceDelta);
+  var (stakerEarned, stakerRewardPerTokenPaid) = (
+    earned(_staker, _balanceDelta),
+    newRewardPerTokenStored
+  );
+
+  return (
+    newRewardPerTokenStored,
+    now(),
+    stakerEarned,
+    stakerRewardPerTokenPaid
+  );
+}

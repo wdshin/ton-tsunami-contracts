@@ -1,0 +1,15 @@
+cell pack_price_data(int price, int last_update_ts, int last_update_block_lt) inline {
+  return begin_cell()
+    .store_coins(price)
+    .store_uint(last_update_ts, 32)
+    .store_uint(last_update_block_lt, 64)
+    .end_cell();
+}
+
+(int, int, int) unpack_price_data(slice ds) inline {
+  return (
+    ds~load_coins(),      ;; price
+    ds~load_uint(32),     ;; last_update_ts
+    ds.preload_uint(64)   ;; last_update_block_lt
+  );
+}

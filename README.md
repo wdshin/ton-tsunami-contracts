@@ -7,6 +7,14 @@ yarn
 yarn test:vamm
 ```
 
+## Main index ids':
+
+| Index | index_id |
+| ----- | -------- |
+| TON   | 1        |
+| BTC   | 2        |
+| ETH   | 3        |
+
 ---
 
 Bootstraped using Blueprint

@@ -1,0 +1,8 @@
+global slice vault_pool_addr; 
+global slice trader_addr; 
+
+global int ctx::balance; ;; Amount of v-Shares per user
+global int ctx::average_rate; ;; Average rate at which user bought v-Shares
+global int ctx::withdraw_limit; ;; Amount of tokens user can withdraw per withdraw window
+global int ctx::last_withdraw_date; ;; Last date when user have stated withdraw
+global int ctx::withdraw_in_period; ;; Amount of tokens user have withdrawn in period

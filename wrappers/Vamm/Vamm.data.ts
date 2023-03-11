@@ -2,20 +2,24 @@ import { Address, Cell } from 'ton-core';
 import { toStablecoin } from '../../utils';
 import { FundingMode, VammConfig } from './Vamm.types';
 
-export const initVammData = ({
+export function initVammData({
   liquidity,
   price,
+  indexId,
   opts,
 }: {
   liquidity: number;
   price: number;
-  opts?: Partial<Omit<VammConfig, 'oraclePrice' | 'quoteAssetReserve' | 'baseAssetReserve'>>;
-}) => {
+  indexId: number;
+  opts?: Partial<Omit<VammConfig, 'quoteAssetReserve' | 'baseAssetReserve'>>;
+}): VammConfig {
   return {
     balance: opts?.balance ?? 0n,
-    oraclePrice: toStablecoin(price),
-    routerAddr:
-      opts?.routerAddr ?? Address.parse('EQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAM9c'),
+    oracleAddress:
+      opts?.oracleAddress ?? Address.parse('EQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAM9c'),
+    jettonWalletAddress:
+      opts?.jettonWalletAddress ??
+      Address.parse('EQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAM9c'),
     exchangeSettings: {
       fee: opts?.exchangeSettings?.fee ?? toStablecoin(0.0012),
       rolloverFee: opts?.exchangeSettings?.rolloverFee ?? toStablecoin(0.000001), // 0.3!
@@ -51,6 +55,17 @@ export const initVammData = ({
       longFundingRate: opts?.fundingState?.longFundingRate ?? 0n,
       shortFundingRate: opts?.fundingState?.shortFundingRate ?? 0n,
     },
-    positionCode: opts?.positionCode ?? new Cell(),
+    extraData: {
+      vaultAddress:
+        opts?.extraData?.vaultAddress ??
+        Address.parse('EQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAM9c'),
+      adminAddress:
+        opts?.extraData?.adminAddress ??
+        Address.parse('EQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAM9c'),
+      paused: false,
+      closedOnly: false,
+      indexId: indexId,
+      positionWalletCode: opts?.extraData?.positionWalletCode ?? new Cell(),
+    },
   };
-};
+}

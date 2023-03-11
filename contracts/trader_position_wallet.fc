@@ -43,8 +43,10 @@
 
         ctx::is_busy = 1;
 
+        slice redirect_addr = in_msg_body~load_msg_addr();
+
         var body = begin_cell().store_slice(in_msg_body).store_ref(ctx::position_ref);
-        send_simple_message(0, ctx::vamm_addr, body, mode::carry_remaining_gas);
+        send_simple_message(0, redirect_addr, body, mode::carry_remaining_gas);
 
         save_data();
         return ();

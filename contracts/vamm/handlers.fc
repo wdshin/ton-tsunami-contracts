@@ -2,29 +2,75 @@
 
 #include "./constants.fc";
 #include "./storage.fc";
+#include "./errors.fc";
 #include "./utils.fc";
+#include "./requests.fc";
+
+() handle::transfer_notification(slice in_msg_body, slice sender_addr, int query_id) impure inline {
+  var (int jetton_amount, slice from_addr, cell payload_ref) = (in_msg_body~load_coins(), in_msg_body~load_msg_addr(), in_msg_body.preload_ref());
+
+  load_data();
+
+  throw_unless(error::invalid_jetton, equal_slices(sender_addr, db::jetton_wallet_addr));
+
+  slice payload_s = payload_ref.begin_parse();
+  int payload_op = payload_s~load_uint(32);
+        
+  if ((payload_op == op::increase_position) | (payload_op == op::add_margin)) {
+    throw_unless(error::invalid_jetton_amount, jetton_amount > 0);
+
+    ;; db::trader_position_wallet_code
+    var (cell position_state_init, slice trader_position_addr) = get_position_state_init_and_address(db::extra_data_cell.begin_parse().preload_ref(), my_address(), from_addr);
+
+    request_position_and_price_with_amount(db::oracle_addr, payload_op, query_id, jetton_amount, payload_s, trader_position_addr, position_state_init);
+    return ();
+  }
+
+  throw(0xffff);
+}
 
 () handle::increase_position(slice in_msg_body, slice sender_addr, int query_id, int msg_value) impure inline {
-  load_data();
-  slice position_s = in_msg_body.preload_ref().begin_parse();
-  slice payload_s = in_msg_body;
+  ;; TODO check if mesage was sent from correct position address
+  var (cell payload_ref, cell position_ref, cell new_price_ref) = (in_msg_body~load_ref(), in_msg_body~load_ref(), in_msg_body.preload_ref());
+
+  slice oracle_data_s = new_price_ref.begin_parse();
+  int new_price = oracle_data_s~load_coins();
+  syncTerminalPriceToOracle(new_price);
+
+  slice position_s = position_ref.begin_parse();
+  slice payload_s = payload_ref.begin_parse();
 
   ;; TODO: msg layout
-  int raw_amount = payload_s~load_coins();
-  int direction = payload_s~load_uint(1);
-  int leverage = payload_s~load_uint(32);
-  int min_base_asset_amount = payload_s~load_coins();
+  int raw_amount = in_msg_body~load_coins();
+
+  var (int direction, int leverage, int min_base_asset_amount) = (payload_s~load_uint(1), payload_s~load_uint(32), payload_s~load_coins());
+  ;; int direction = payload_s~load_uint(1);
+  ;; int leverage = payload_s~load_uint(32);
+  ;; int min_base_asset_amount = payload_s~load_coins();
 
   ;; Check...
   ;; TODO: check asset on router
+
+  ~dump(leverage);
+  ~dump(direction);
+  ~dump(min_base_asset_amount);
+  ~dump(500);
+
   if (~ requireMoreMarginRatio(divd(DECIMAL_UNIT, leverage), db::initMarginRatio, true)) {
-    ~dump(401);
     int withdraw_ton_amount = 120000000; ;; TODO: calculate gas fee from config
 
     int unlock_ton_amount = msg_value - withdraw_ton_amount;
 
-    withdraw(position_s~load_msg_addr(), raw_amount, withdraw_ton_amount, mode::normal);
-    unlock_position(sender_addr, unlock_ton_amount, mode::normal);
+
+    ~dump(leverage);
+    ~dump(direction);
+    ~dump(min_base_asset_amount);
+    ~dump(unlock_ton_amount);
+    ~dump(401);
+
+    request_withdraw(query_id, raw_amount, position_s~load_msg_addr(), withdraw_ton_amount, mode::normal + mode::ignore_errors);
+    ;; withdraw(position_s~load_msg_addr(), raw_amount, withdraw_ton_amount, mode::normal);
+    unlock_position(sender_addr, unlock_ton_amount, mode::normal + mode::ignore_errors);
     return ();
   }
   ;; TODO: fee calculations    
@@ -56,7 +102,9 @@
 
     int unlock_ton_amount = msg_value - withdraw_ton_amount;
 
-    withdraw(trader_addr, raw_amount, withdraw_ton_amount, mode::normal);
+    request_withdraw(query_id, raw_amount, trader_addr, withdraw_ton_amount,mode::normal);
+
+    ;; withdraw(trader_addr, raw_amount, withdraw_ton_amount, mode::normal);
     unlock_position(sender_addr, unlock_ton_amount, mode::normal);
     return ();
   }
@@ -98,7 +146,7 @@
   db::balance += _amount;
 
 
-  cell new_position_ref = pack_position_data(trader_addr, newPositionSize, newPositionMargin, newPositionOpenNotional, newPositionLatestCPF, old_position_fee, now());
+  cell new_position_ref = pack_position_data(trader_addr, newPositionSize, newPositionMargin, newPositionOpenNotional, newPositionLatestCPF, get_position_fee(old_position_fee), now());
   ;; TODO: calculate value and mode
   update_position(new_position_ref, op::increase_position, query_id, sender_addr, 0, mode::carry_remaining_gas);
 
@@ -140,12 +188,20 @@
 }
 
 () handle::close_position(slice in_msg_body, slice sender_addr, int query_id, int my_balance, int msg_value) impure inline {
-  slice position_s = in_msg_body.preload_ref().begin_parse();
-  slice payload_s = in_msg_body;
+  var (cell payload_ref, cell position_ref, cell new_price_ref) = (in_msg_body~load_ref(), in_msg_body~load_ref(), in_msg_body.preload_ref());
 
-  int _size = payload_s~load_int(128);
-  int _minQuoteAssetAmount = payload_s~load_coins();
-  int _addToMargin = payload_s~load_uint(1);
+  slice oracle_s = new_price_ref.begin_parse();
+  int new_price = oracle_s~load_coins();
+  syncTerminalPriceToOracle(new_price);
+
+  slice position_s = position_ref.begin_parse();
+  slice payload_s = payload_ref.begin_parse();
+
+  ;; TODO: msg layout
+
+  var (int _size, int _minQuoteAssetAmount, int _addToMargin) = (payload_s~load_int(128), payload_s~load_coins(), payload_s~load_int(1));
+
+  slice position_s = position_ref.begin_parse();
 
   var (slice trader_addr,
     int oldPositionSize,
@@ -192,7 +248,8 @@
     _minQuoteAssetAmount,
     _addToMargin,
     true,
-    false
+    false,
+    new_price
   );
 
   if ((positionBadDebt > 0) | (oldPositionTimestamp >= now())) {
@@ -235,10 +292,10 @@
     value_to_sent -= withdraw_ton;
     ;; TODO: calculate value and mode
     ;; 0.1ton
-    withdraw(trader_addr, marginToTrader, withdraw_ton, mode::normal);
+    request_withdraw(query_id, marginToTrader, trader_addr, withdraw_ton, mode::normal);
+    ;; withdraw(trader_addr, marginToTrader, withdraw_ton, mode::normal);
   }
 
-  cell new_position_ref = pack_position_data(newPositionSize != 0 ? (trader_addr, newPositionSize, newPositionMargin, newPositionOpenNotional, newPositionLstUpdCPF, oldPositionFee, now()) : (trader_addr, 0, 0, 0, 0, 0, 0));
   ;; TODO: calculate value and mode
 
   ;; TODO: need this? 
@@ -252,6 +309,10 @@
 
   db::balance = max(ammBalance, 0);
 
+  ~dump(888999);
+  ~dump(db::fee);
+
+  cell new_position_ref = pack_position_data(newPositionSize != 0 ? (trader_addr, newPositionSize, newPositionMargin, newPositionOpenNotional, newPositionLstUpdCPF, get_position_fee(oldPositionFee), now()) : (trader_addr, 0, 0, 0, 0, 0, 0));
   update_position(new_position_ref, op::close_position, query_id, sender_addr, value_to_sent, mode::normal);
   ;;   TODO: transfer fee here
   ;;   transferFee(feeToStakers)
@@ -259,10 +320,15 @@
 }
 
 () handle::add_margin(slice in_msg_body, slice sender_addr, int query_id, int msg_value) impure inline {
-  slice position_s = in_msg_body.preload_ref().begin_parse();
+  var (int _amount, cell payload_ref, cell position_ref, cell new_price_ref) = (in_msg_body~load_coins(), in_msg_body~load_ref(), in_msg_body~load_ref(), in_msg_body.preload_ref());
 
-  slice payload_s = in_msg_body;
-  int _amount = payload_s~load_coins();
+  slice oracle_s = new_price_ref.begin_parse();
+  int new_price = oracle_s~load_coins();
+  syncTerminalPriceToOracle(new_price);
+
+  slice position_s = position_ref.begin_parse();
+
+  ;; TODO: msg layout
 
   if ( ~ requireOpenPosition(position_s)) {
     ~dump(405);
@@ -272,7 +338,9 @@
 
     int unlock_ton_amount = msg_value - withdraw_ton_amount;
 
-    withdraw(position_s~load_msg_addr(), _amount, withdraw_ton_amount, mode::normal);
+    request_withdraw(query_id, _amount, position_s~load_msg_addr(), withdraw_ton_amount, mode::normal);
+
+    ;; withdraw(position_s~load_msg_addr(), _amount, withdraw_ton_amount, mode::normal);
     unlock_position(sender_addr, unlock_ton_amount, mode::normal);
     return ();
   }
@@ -319,7 +387,7 @@
   db::balance += (_amount - rolloverFee);
 
   int newPositionMargin = oldPositionMargin - rolloverFee + _amount;
-  cell new_position_ref = pack_position_data(trader_addr, oldPositionSize, newPositionMargin, oldPositionOpenNotional, oldPositionLastUpdatedCPF, oldPositionFee, now());
+  cell new_position_ref = pack_position_data(trader_addr, oldPositionSize, newPositionMargin, oldPositionOpenNotional, oldPositionLastUpdatedCPF, get_position_fee(oldPositionFee), now());
   ;; TODO: calculate value and mode
   update_position(new_position_ref, op::add_margin, query_id, sender_addr, 0, mode::carry_remaining_gas);
 
@@ -328,8 +396,14 @@
 }
 
 () handle::remove_margin(slice in_msg_body, slice sender_addr, int query_id) impure inline {
-  slice position_s = in_msg_body.preload_ref().begin_parse();
-  slice payload_s = in_msg_body;
+  var (cell payload_ref, cell position_ref, cell new_price_ref) = (in_msg_body~load_ref(), in_msg_body~load_ref(), in_msg_body.preload_ref());
+
+  slice oracle_s = new_price_ref.begin_parse();
+  int new_price = oracle_s~load_coins();
+  syncTerminalPriceToOracle(new_price);
+
+  slice position_s = position_ref.begin_parse();
+  slice payload_s = payload_ref.begin_parse();
   int _amount = payload_s~load_coins();
 
   if (_amount <= 0 | ~ requireOpenPosition(position_s)) {
@@ -383,7 +457,8 @@
   ;; )
 
   
-  cell new_position_ref = pack_position_data(trader_addr, oldPositionSize, remainMargin, oldPositionOpenNotional, latestCumulativePremiumFraction(oldPositionSize), oldPositionFee, now());
+  request_withdraw(query_id, _amount, trader_addr, 10000000, mode::normal);
+  cell new_position_ref = pack_position_data(trader_addr, oldPositionSize, remainMargin, oldPositionOpenNotional, latestCumulativePremiumFraction(oldPositionSize), get_position_fee(oldPositionFee), now());
   ;; TODO: calculate value and mode
   update_position(new_position_ref, op::remove_margin, query_id, sender_addr, 0, mode::carry_remaining_gas);
   ;; TODO: withdraw here 
@@ -397,10 +472,15 @@
 }
 
 () handle::pay_funding(slice in_msg_body, slice sender_addr, int query_id) impure inline {
-  load_data();
   throw_if(600, now() < db::nextFundingBlockTimestamp);
 
-  var (int shortPremiumFraction, int longPremiumFraction, int premiumToVault) = getFunding();
+  cell new_price_ref = in_msg_body.preload_ref();
+
+  slice oracle_s = new_price_ref.begin_parse();
+  int new_price = oracle_s~load_coins();
+  syncTerminalPriceToOracle(new_price);
+
+  var (int shortPremiumFraction, int longPremiumFraction, int premiumToVault) = getFunding(new_price);
 
   ;;         strict doPayFundingToVault = if (premiumToVault > 0) then {
   ;;   strict doPayFundingToVault = invoke(
@@ -417,8 +497,44 @@
   db::nextFundingBlockTimestamp += fundingPeriodRaw * SECONDS;
   db::latestLongCumulativePremiumFraction += longPremiumFraction;
   db::latestShortCumulativePremiumFraction += shortPremiumFraction;
-  db::longFundingRate = divd(longPremiumFraction, db::oraclePrice);
-  db::shortFundingRate = divd(shortPremiumFraction, db::oraclePrice);
+  db::longFundingRate = divd(longPremiumFraction, new_price);
+  db::shortFundingRate = divd(shortPremiumFraction, new_price);
 
   save_data();
+}
+
+() handle::oracle_response(slice in_msg_body, slice sender_addr, int my_balance, int msg_value) impure inline {
+  load_data();
+  throw_unless(error::not_an_oracle, equal_slices(sender_addr, db::oracle_addr));
+        
+
+  var (slice prev_sender_addr, int op, int query_id) = (in_msg_body~load_msg_addr(), in_msg_body~load_uint(32), in_msg_body~load_uint(64));
+
+  if (op == op::increase_position) {
+    handle::increase_position(in_msg_body, prev_sender_addr, query_id, msg_value);
+    return ();
+  }
+
+  if (op == op::add_margin) {
+    int jetton_amount = in_msg_body~load_coins();
+    handle::add_margin(in_msg_body, prev_sender_addr, query_id, msg_value);
+    return ();
+  }
+    
+  if (op == op::close_position) {
+    handle::close_position(in_msg_body, prev_sender_addr, query_id, my_balance, msg_value);
+    return ();
+  }
+
+  if (op == op::remove_margin) {
+    handle::remove_margin(in_msg_body, prev_sender_addr, query_id);
+    return ();
+  }
+
+  if (op == op::pay_funding) {
+    handle::pay_funding(in_msg_body, prev_sender_addr, query_id);
+    return ();
+  }
+
+  throw(0xffff);
 }

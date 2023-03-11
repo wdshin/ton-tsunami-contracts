@@ -1,3 +1,25 @@
+cell pack_extra_data(slice vault_addr, slice admin_addr, int paused, int closed_only, int index_id, cell trader_position_wallet_code) inline {
+  return begin_cell()
+    .store_slice(vault_addr)
+    .store_slice(admin_addr)
+    .store_uint(paused, 1)
+    .store_uint(closed_only, 1)
+    .store_uint(index_id, 16)
+    .store_ref(trader_position_wallet_code)
+    .end_cell();
+}
+
+_ unpack_extra_data(slice ds) inline {
+  return (
+    ds~load_msg_addr(),
+    ds~load_msg_addr(),
+    ds~load_uint(1),
+    ds~load_uint(1),
+    ds~load_uint(16),
+    ds~load_ref()
+  );
+}
+
 _ unpack_exchange_settings(slice ds) inline {
   return (
     ds~load_uint(32), ;; db::fee;                                      

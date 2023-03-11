@@ -1,6 +1,5 @@
 const op::increase_position = "op::increase_position"c;
 const op::close_position = "op::close_position"c;
-const op::temp_set_price = "op::temp_set_price"c;
 const op::update_position = "op::update_position"c;
 const op::temp_set_amm_data = "op::temp_set_amm_data"c;
 const op::add_margin = "op::add_margin"c;
@@ -8,3 +7,5 @@ const op::remove_margin = "op::remove_margin"c;
 const op::pay_funding = "op::pay_funding"c;
 const op::withdraw = "op::withdraw"c;
 const op::unlock_position = "op::unlock_position"c;
+const op::provide_position = "op::provide_position"c;
+const op::set_jetton_wallet_address = "op::set_jetton_wallet_address"c;

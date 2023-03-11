@@ -9,6 +9,8 @@ export const VammOpcodes = {
   removeMargin: 0xecded426,
   payFunding: 0xb652c441,
   withdraw: 0xcb03bfaf,
+  setJettonWalletAddress: 0xee87d2d4,
+  oraclePriceResponse: 0x96a426f1,
 };
 
 export type ExchangeSettings = {
@@ -46,6 +48,15 @@ export type FundingState = {
   shortFundingRate: bigint;
 };
 
+export type VammExtraData = {
+  vaultAddress: Address;
+  adminAddress: Address;
+  paused: boolean;
+  closedOnly: boolean;
+  indexId: number;
+  positionWalletCode: Cell;
+};
+
 export enum FundingMode {
   ASYMMETRIC = 1,
   SYMMETRIC = 2,
@@ -53,19 +64,19 @@ export enum FundingMode {
 
 export type VammConfig = {
   balance: bigint;
-  oraclePrice: bigint;
-  routerAddr: Address;
+  oracleAddress: Address;
+  jettonWalletAddress: Address;
+
   exchangeSettings: ExchangeSettings;
   ammState: AmmState;
   fundingState: FundingState;
-  positionCode: Cell;
+  extraData: VammExtraData;
 };
 
 export type IncreasePositionBody = {
   direction: Direction;
   leverage: bigint;
   minBaseAssetAmount?: bigint;
-  amount: bigint;
 };
 
 export enum Direction {

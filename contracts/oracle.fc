@@ -1,0 +1,52 @@
+#include "shared/stdlib.fc";
+#include "shared/messages.fc";
+
+#include "oracle/op-codes.fc";
+#include "oracle/storage.fc";
+#include "oracle/packers.fc";
+
+;; Simple 
+() recv_internal(int my_balance, int msg_value, cell in_msg_full, slice in_msg_body) impure {
+  if (in_msg_body.slice_empty?()) { ;; ignore all empty messages
+    return ();
+  }
+
+  slice cs = in_msg_full.begin_parse();
+  int flags = cs~load_uint(4);
+  if (flags & 1) { ;; ignore all bounced messages
+    return ();
+  }
+
+  slice sender_addr = cs~load_msg_addr();
+
+  int op = in_msg_body~load_uint(32);
+
+  if (op == op::set_oracle_price) {
+    var (slice manager_addr, int index_id, _) = load_data();
+    throw_unless(401, equal_slices(sender_addr, manager_addr));
+
+    int new_price = in_msg_body~load_coins();
+    save_data(manager_addr, index_id, pack_price_data(new_price, now(), block_lt()));
+    return ();
+  }
+
+  if (op == op::oracle_price_request) {
+    var (_, _, cell price_data) = load_data();
+    slice redirect_addr = in_msg_body~load_msg_addr();
+
+    var body = begin_cell()
+      .store_uint(op::oracle_price_response, 32)
+      .store_slice(sender_addr) ;; "from" address
+      .store_slice(in_msg_body)
+      .store_ref(price_data);
+    
+    send_simple_message(0, redirect_addr, body, mode::carry_remaining_gas);
+    return ();
+  }
+
+  throw(0xffff);
+}
+
+_ get_oracle_data() method_id {
+  return load_data();
+}
