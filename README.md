@@ -1,3 +1,8 @@
+# The remaining Tsunami exchange project repositories
+UI Telegram app: https://github.com/Tsunami-Exchange/ton-tsunami-ui
+Oracle: https://github.com/Tsunami-Exchange/ton-tsunami-oracle
+Indexer: https://github.com/Tsunami-Exchange/ton-tsunami-indexer
+
 # Tsunami exchange TON contracts
 
 Install deps and test vAMM:
