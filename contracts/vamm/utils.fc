@@ -262,13 +262,12 @@ _ swapOutputWithReserves(
   ;;  throw("Invalid base asset amount") 
 
   int k = muld(_quoteAssetReserve, _baseAssetReserve);
-  int baseAssetPoolAmountAfter = _isAdd ? _baseAssetReserve + _baseAssetAmount : _baseAssetReserve - _baseAssetAmount;
+  int baseAssetPoolAmountAfter = _isAdd ? (_baseAssetReserve + _baseAssetAmount) : (_baseAssetReserve - _baseAssetAmount);
 
   int quoteAssetAfter = divd(k, baseAssetPoolAmountAfter);
   int quoteAssetDelta = abs(quoteAssetAfter - _quoteAssetReserve);
   int quoteAssetSold = quoteAssetDelta.muld(_quoteAssetWeight);
 
-  ;; int maxPriceImpactValue = maxPriceImpact();
 
 
   var (
@@ -276,32 +275,6 @@ _ swapOutputWithReserves(
     int baseAssetReserveAfter1
   ) = updateReserve(~ _isAdd, quoteAssetDelta, _baseAssetAmount);
 
-  {-
-    
-    int marketPrice = divd(quoteAssetSold, _baseAssetAmount)
-    int priceDiff = abs(priceBefore - marketPrice)
-    int priceImpact = DECIMAL_UNIT - divd(priceBefore, (priceBefore + priceDiff))
-    
-    if (priceImpact > maxPriceImpactValue && _checkMaxPriceImpact) then {
-      throw("Price impact " + priceImpact.toString() + " > max price impact " + maxPriceImpactValue.toString() 
-        + " before quote asset: " + _quoteAssetReserve.toString()
-        + " before base asset: " + _baseAssetReserve.toString()
-        + " base asset amount to exchange: " + _baseAssetAmount.toString()
-        + " price before: " + priceBefore.toString()
-        + " market price: " + marketPrice.toString()
-      )
-    } else {
-      (
-        quoteAssetSold,
-        quoteAssetReserveAfter1,
-        baseAssetReserveAfter1,
-        totalPositionSizeAfter1,
-        totalLongPositionSize()  - if (_isAdd)  then abs(_baseAssetAmount) else 0,
-        totalShortPositionSize() - if (!_isAdd) then abs(_baseAssetAmount) else 0,
-        priceImpact
-      )
-    }
-    -}
   return (
     quoteAssetSold,
     quoteAssetReserveAfter1,
@@ -382,14 +355,6 @@ _ getPositionNotionalAndUnrealizedPnlByValues(
     oraclePrice
   );
 
-    ~dump(788888);
-    ~dump(positionNotional);
-    ~dump(_positionOpenNotional);
-    ~dump(_quoteAssetReserve);
-    ~dump(_quoteAssetWeight);
-    ~dump(_baseAssetReserve);
-    ~dump(_baseAssetWeight);
-
   int unrealizedPnl = isShort ? (_positionOpenNotional - positionNotional) : (positionNotional - _positionOpenNotional);
   return (
     positionNotional,
@@ -410,7 +375,6 @@ _ getMarginRatioByOption(
   int _option,
   int oraclePrice
 ) inline {
-
   var (int positionNotional, int unrealizedPnl) = getPositionNotionalAndUnrealizedPnlByValues(_positionSize, _positionOpenNotional, db::quoteAssetReserve, db::quoteAssetWeight, db::baseAssetReserve, DECIMAL_UNIT, _option, oraclePrice);
   var (int remainMargin, int badDebt, _, _) = calcRemainMarginWithFundingPaymentAndRolloverFee(
     _positionSize,

@@ -34,12 +34,6 @@ describe('vAMM should be able to partially close position', () => {
   beforeAll(async () => {
     blockchain = await MyBlockchain.create();
     blockchain.verbosity.debugLogs = false;
-    // blockchain.verbosity = {
-    //   print: true,
-    //   vmLogs: 'vm_logs',
-    //   blockchainLogs: true,
-    //   debugLogs: true,
-    // };
 
     longer = await blockchain.treasury('longer');
     longerPosition = await blockchain.treasury('longerPosition');
@@ -706,7 +700,7 @@ describe('vAMM should be able to partially close position', () => {
     });
     lastLongerPosition = getAndUnpackPosition(increaseResult.events);
 
-    blockchain.setVerbosityForAddress(vamm.address, { vmLogs: 'vm_logs', debugLogs: true });
+    // blockchain.setVerbosityForAddress(vamm.address, { vmLogs: 'vm_logs', debugLogs: true });
     const liquidateResult1 = await vamm.sendLiquidateRaw(oracle.getSender(), {
       value: toNano('0.3'),
       oldPosition: lastLongerPosition,
@@ -792,7 +786,6 @@ describe('vAMM should be able to partially close position', () => {
       if (i == 8) {
         actualPart = BigMath.abs(lastShorterPosition.size);
       }
-      blockchain.setVerbosityForAddress(vamm.address, { vmLogs: 'vm_logs', debugLogs: true });
       blockchain.now += 1;
       const closeResult = await vamm.sendClosePositionRaw(oracle.getSender(), {
         value: toNano('0.2'),
@@ -802,7 +795,6 @@ describe('vAMM should be able to partially close position', () => {
         oracleRedirectAddress: shorterPosition.address,
         addToMargin: true,
       });
-      console.log(closeResult.events);
       if (i == 8) {
         lastShorterPosition = getAndUnpackPosition(closeResult.events, i == 8 ? 2 : -1);
         const withdrawMsg = getAndUnpackWithdrawMessage(closeResult.events, 1);

@@ -1,23 +1,14 @@
 import '@ton-community/test-utils';
-import { compile, sleep } from '@ton-community/blueprint';
-import { Blockchain, SandboxContract, TreasuryContract } from '@ton-community/sandbox';
+import { compile } from '@ton-community/blueprint';
+import { SandboxContract, TreasuryContract } from '@ton-community/sandbox';
 import { toNano } from 'ton-core';
 
 import { Direction, IncreasePositionBody, Vamm } from '../wrappers/Vamm';
 import { initVammData } from '../wrappers/Vamm/Vamm.data';
 import { PositionData } from '../wrappers/TraderPositionWallet';
-import { getOraclePrice, toStablecoin } from '../utils';
+import { getInitPosition, getOraclePrice, toStablecoin } from '../utils';
 import { getAndUnpackPosition } from '../utils';
 import { MyBlockchain } from '../wrappers/MyBlockchain/MyBlockchain';
-
-const emptyPosition = {
-  size: 0n,
-  margin: 0n,
-  openNotional: 0n,
-  lastUpdatedCumulativePremium: 0n,
-  fee: 0n,
-  lastUpdatedTimestamp: 0n,
-};
 
 describe('vAMM should work with positive funding', () => {
   let blockchain: MyBlockchain;
@@ -42,7 +33,7 @@ describe('vAMM should work with positive funding', () => {
 
     longer = await blockchain.treasury('longer');
     longerPosition = await blockchain.treasury('longerPosition');
-    lastLongerPosition = { ...emptyPosition, traderAddress: longer.address };
+    lastLongerPosition = getInitPosition(longer.address);
 
     vamm = blockchain.openContract(
       Vamm.createFromConfig(

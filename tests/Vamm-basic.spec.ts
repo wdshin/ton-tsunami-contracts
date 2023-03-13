@@ -302,8 +302,6 @@ describe('vAMM should work with positive funding', () => {
       oracleRedirectAddress: shorterPosition.address,
     });
 
-    console.log({ lastShorterPosition });
-
     expect(closeResult.transactions).toHaveTransaction({
       from: vamm.address,
       to: shorterPosition.address,

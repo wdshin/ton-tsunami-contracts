@@ -8,7 +8,7 @@ import {
   Sender,
   SendMode,
 } from 'ton';
-import { addressToCell, BigMath, toStablecoin } from '../../utils';
+import { addressToCell, BigMath, toStablecoin, toStablecoinFloat } from '../../utils';
 import { packOraclePrice } from '../Oracle/Oracle';
 import { OraclePrice } from '../Oracle/Oracle.types';
 import { packPositionData, PositionData } from '../TraderPositionWallet';
@@ -538,6 +538,16 @@ export class Vamm implements Contract {
       fundingState: unpackFundingState(stack.readCell()),
       extraData: unpackVammExtraData(stack.readCell()),
     };
+  }
+
+  async getMarketPrice(provider: ContractProvider): Promise<number> {
+    const { ammState } = await this.getAmmData(provider);
+    const { quoteAssetReserve, quoteAssetWeight, baseAssetReserve } = ammState;
+
+    let rawQ = toStablecoinFloat(quoteAssetReserve * quoteAssetWeight);
+    let rawB = toStablecoinFloat(baseAssetReserve * 1000000n);
+
+    return parseFloat((rawQ / rawB).toFixed(4));
   }
 
   async getTraderPositionAddress(provider: ContractProvider, traderAddress: Address) {

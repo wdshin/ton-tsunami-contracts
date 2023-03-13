@@ -524,11 +524,8 @@
 
   slice oracle_s = new_price_ref.begin_parse();
   int new_price = oracle_s~load_coins();
-  ~dump(11);
-  ~dump(new_price);
   syncTerminalPriceToOracle(new_price);
 
-  ~dump(12);
   slice position_s = position_ref.begin_parse();
 
   var (slice trader_addr,
@@ -539,8 +536,14 @@
     int oldPositionFee,
     int oldPositionTimestamp) = unpack_position_data(position_s);
 
-  int spotMarginRatio = getMarginRatioByOption(oldPositionSize, oldPositionMargin, oldPositionOpenNotional, oldPositionLastUpdatedCPF, oldPositionTimestamp, PNL_OPTION_SPOT, new_price);
 
+  if (oldPositionSize == 0) {
+    ;; "Unable to liquidate"
+    unlock_position(sender_addr, 0, mode::carry_remaining_gas);
+    return ();
+  }
+
+  int spotMarginRatio = getMarginRatioByOption(oldPositionSize, oldPositionMargin, oldPositionOpenNotional, oldPositionLastUpdatedCPF, oldPositionTimestamp, PNL_OPTION_SPOT, new_price);
   int liquidationMarginRatio = isOverFluctuationLimit(new_price) ? max(spotMarginRatio, getMarginRatioByOption(oldPositionSize, oldPositionMargin, oldPositionOpenNotional, oldPositionLastUpdatedCPF, oldPositionTimestamp, PNL_OPTION_ORACLE, new_price)) : spotMarginRatio;
 
   ;; !requireMoreMarginRatio(liquidationMarginRatio, maintenanceMarginRatio(), false)
@@ -548,7 +551,7 @@
   ;; || !initialized()
   ;; || paused()
   ;; || isMarketClosed()
-  if (~ requireMoreMarginRatio(liquidationMarginRatio, db::maintenanceMarginRatio, false) | oldPositionSize == 0) {
+  if (~ requireMoreMarginRatio(liquidationMarginRatio, db::maintenanceMarginRatio, false)) {
     ;; "Unable to liquidate"
     unlock_position(sender_addr, 0, mode::carry_remaining_gas);
     return ();
@@ -639,18 +642,10 @@
   int withdraw_ton_amount = 120000000; ;; TODO: calculate gas fee from config
   int update_ton_amount = msg_value - withdraw_ton_amount;
 
-  ;; request_withdraw(query_id, feeToLiquidator, liquidator_addr, withdraw_ton_amount, mode::normal);
-
-  ~dump(67676767676);
-  ~dump(feeToLiquidator);
-  ~dump(newPositionSize);
-  ~dump(oldPositionSize);
-  ~dump(isPartialLiquidation);
-  ~dump(db::liquidationFeeRatio);
+  request_withdraw(query_id, feeToLiquidator, liquidator_addr, withdraw_ton_amount, mode::normal + mode::ignore_errors);
 
   cell new_position_ref = pack_position_data(isPartialLiquidation ? (trader_addr, newPositionSize, newPositionMargin, newPositionOpenNotional, newPositionLstUpdCPF, get_position_fee(oldPositionFee), now()) : (trader_addr, 0, 0, 0, 0, 0, 0));
-  update_position(new_position_ref, op::liquidate, query_id, sender_addr, 0, mode::carry_remaining_gas);
-  ~dump(6767676769);
+  update_position(new_position_ref, op::liquidate, query_id, sender_addr, update_ton_amount, mode::normal + mode::ignore_errors);
   save_data();
 }
 
