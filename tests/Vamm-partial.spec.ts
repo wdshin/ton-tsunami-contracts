@@ -652,6 +652,7 @@ describe('vAMM should be able to partially close position', () => {
     });
     lastShorterPosition = getAndUnpackPosition(increaseResult.events);
 
+    // blockchain.setVerbosityForAddress(vamm.address, { vmLogs: 'vm_logs', debugLogs: true });
     blockchain.now += 1;
     const liquidateResult1 = await vamm.sendLiquidateRaw(oracle.getSender(), {
       value: toNano('0.3'),
@@ -661,6 +662,7 @@ describe('vAMM should be able to partially close position', () => {
       oracleRedirectAddress: shorterPosition.address,
     });
     lastShorterPosition = getAndUnpackPosition(liquidateResult1.events);
+
     blockchain.now += 1;
     const liquidateResult2 = await vamm.sendLiquidateRaw(oracle.getSender(), {
       value: toNano('0.3'),
@@ -678,7 +680,7 @@ describe('vAMM should be able to partially close position', () => {
       priceData: getOraclePrice(69),
       oracleRedirectAddress: shorterPosition.address,
     });
-    lastShorterPosition = getAndUnpackPosition(closeResult.events, 2);
+    lastShorterPosition = getAndUnpackPosition(closeResult.events);
 
     const { ammState } = await vamm.getAmmData();
     expect(toStablecoinFloat(ammState.openInterestLong)).toBeCloseTo(0, 0.01);
