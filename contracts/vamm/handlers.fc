@@ -292,7 +292,7 @@
 
   int mint_storage_tons = 50000000;
   int value_to_sent = my_balance - mint_storage_tons;
-  
+
   if (marginToTrader > 0) {
     ~dump(999);
     int withdraw_ton = 110000000;
