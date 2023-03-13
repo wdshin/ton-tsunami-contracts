@@ -9,9 +9,9 @@
 () handle::transfer_notification(slice in_msg_body, slice sender_addr, int query_id) impure inline {
   var (int jetton_amount, slice from_addr, cell payload_ref) = (in_msg_body~load_coins(), in_msg_body~load_msg_addr(), in_msg_body.preload_ref());
 
-  load_data();
+  var (slice oracle_addr, slice jetton_wallet_addr, cell position_wallet_code) = select_transfer_data();
 
-  throw_unless(error::invalid_jetton, equal_slices(sender_addr, db::jetton_wallet_addr));
+  throw_unless(error::invalid_jetton, equal_slices(sender_addr, jetton_wallet_addr));
 
   slice payload_s = payload_ref.begin_parse();
   int payload_op = payload_s~load_uint(32);
@@ -19,14 +19,13 @@
   if ((payload_op == op::increase_position) | (payload_op == op::add_margin)) {
     throw_unless(error::invalid_jetton_amount, jetton_amount > 0);
 
-    ;; db::trader_position_wallet_code
-    var (cell position_state_init, slice trader_position_addr) = get_position_state_init_and_address(db::extra_data_cell.begin_parse().preload_ref(), my_address(), from_addr);
+    var (cell position_state_init, slice trader_position_addr) = get_position_state_init_and_address(position_wallet_code, my_address(), from_addr);
 
-    request_position_and_price_with_amount(db::oracle_addr, payload_op, query_id, jetton_amount, payload_s, trader_position_addr, position_state_init);
+    request_position_and_price_with_amount(oracle_addr, payload_op, query_id, jetton_amount, payload_s, trader_position_addr, position_state_init);
     return ();
   }
 
-  throw(0xffff);
+  throw(error::wrong_op);
 }
 
 () handle::increase_position(slice in_msg_body, slice sender_addr, int query_id, int msg_value) impure inline {
@@ -188,11 +187,15 @@
 }
 
 () handle::close_position(slice in_msg_body, slice sender_addr, int query_id, int my_balance, int msg_value) impure inline {
+
   var (cell payload_ref, cell position_ref, cell new_price_ref) = (in_msg_body~load_ref(), in_msg_body~load_ref(), in_msg_body.preload_ref());
 
   slice oracle_s = new_price_ref.begin_parse();
   int new_price = oracle_s~load_coins();
   syncTerminalPriceToOracle(new_price);
+  ~dump(70000);
+  ~dump(new_price);
+  ~dump(db::quoteAssetWeight);
 
   slice position_s = position_ref.begin_parse();
   slice payload_s = payload_ref.begin_parse();
@@ -211,12 +214,14 @@
     int oldPositionFee,
     int oldPositionTimestamp) = unpack_position_data(position_s);
 
-  load_data();
 
   ~dump(888);
 
   ifnot ((_size <= abs(oldPositionSize)) & (_size > 0)) {
     ~dump(889);
+    ~dump(_size);
+    ~dump(abs(oldPositionSize));
+    ~dump((_size <= abs(oldPositionSize)));
     unlock_position(sender_addr, 0, mode::carry_remaining_gas);
     return ();
   }
@@ -254,6 +259,8 @@
 
   if ((positionBadDebt > 0) | (oldPositionTimestamp >= now())) {
     ;; TODO: throw exception
+    ~dump(positionBadDebt);
+    ~dump(oldPositionTimestamp);
     ~dump(406);
     unlock_position(sender_addr, 0, mode::carry_remaining_gas);
     return ();
@@ -320,7 +327,7 @@
 }
 
 () handle::add_margin(slice in_msg_body, slice sender_addr, int query_id, int msg_value) impure inline {
-  var (int _amount, cell payload_ref, cell position_ref, cell new_price_ref) = (in_msg_body~load_coins(), in_msg_body~load_ref(), in_msg_body~load_ref(), in_msg_body.preload_ref());
+  var (int _amount, cell position_ref, cell new_price_ref) = (in_msg_body~load_coins(), in_msg_body~load_ref(), in_msg_body.preload_ref());
 
   slice oracle_s = new_price_ref.begin_parse();
   int new_price = oracle_s~load_coins();
@@ -344,7 +351,6 @@
     unlock_position(sender_addr, unlock_ton_amount, mode::normal);
     return ();
   }
-  load_data();
 
   var (slice trader_addr,
     int oldPositionSize,
@@ -396,23 +402,19 @@
 }
 
 () handle::remove_margin(slice in_msg_body, slice sender_addr, int query_id) impure inline {
-  var (cell payload_ref, cell position_ref, cell new_price_ref) = (in_msg_body~load_ref(), in_msg_body~load_ref(), in_msg_body.preload_ref());
+  var (int _amount, cell position_ref, cell new_price_ref) = (in_msg_body~load_coins(), in_msg_body~load_ref(), in_msg_body.preload_ref());
 
   slice oracle_s = new_price_ref.begin_parse();
   int new_price = oracle_s~load_coins();
   syncTerminalPriceToOracle(new_price);
 
   slice position_s = position_ref.begin_parse();
-  slice payload_s = payload_ref.begin_parse();
-  int _amount = payload_s~load_coins();
 
   if (_amount <= 0 | ~ requireOpenPosition(position_s)) {
     ;; TODO: test throwing with unlocking position on bounce
     unlock_position(sender_addr, 0, mode::carry_remaining_gas);
     return ();
   }
-
-  load_data();
 
   var (slice trader_addr,
     int oldPositionSize,
@@ -482,6 +484,10 @@
 
   var (int shortPremiumFraction, int longPremiumFraction, int premiumToVault) = getFunding(new_price);
 
+  ~dump(3333);
+  ~dump(shortPremiumFraction);
+  ~dump(longPremiumFraction);
+
   ;;         strict doPayFundingToVault = if (premiumToVault > 0) then {
   ;;   strict doPayFundingToVault = invoke(
   ;;     vaultAddress(),
@@ -500,6 +506,151 @@
   db::longFundingRate = divd(longPremiumFraction, new_price);
   db::shortFundingRate = divd(shortPremiumFraction, new_price);
 
+  var body = begin_cell()
+    .store_uint(op::update_amm, 32) ;; 0xe434967e
+    .store_uint(query_id, 64)
+    .store_uint(op::pay_funding, 32) ;; 0xb652c441
+    .store_uint(db::nextFundingBlockTimestamp, 32)
+    .store_coins(db::latestLongCumulativePremiumFraction)
+    .store_coins(db::latestShortCumulativePremiumFraction);
+
+  send_simple_message(0, sender_addr, body, mode::carry_remaining_gas + mode::ignore_errors);
+
+  save_data();
+}
+
+() handle::liquidate(slice in_msg_body, slice sender_addr, int query_id, int msg_value) impure inline {
+  var (slice liquidator_addr, cell position_ref, cell new_price_ref) = (in_msg_body~load_msg_addr(), in_msg_body~load_ref(), in_msg_body.preload_ref());
+
+  slice oracle_s = new_price_ref.begin_parse();
+  int new_price = oracle_s~load_coins();
+  ~dump(11);
+  ~dump(new_price);
+  syncTerminalPriceToOracle(new_price);
+
+  ~dump(12);
+  slice position_s = position_ref.begin_parse();
+
+  var (slice trader_addr,
+    int oldPositionSize,
+    int oldPositionMargin,
+    int oldPositionOpenNotional,
+    int oldPositionLastUpdatedCPF,
+    int oldPositionFee,
+    int oldPositionTimestamp) = unpack_position_data(position_s);
+
+  int spotMarginRatio = getMarginRatioByOption(oldPositionSize, oldPositionMargin, oldPositionOpenNotional, oldPositionLastUpdatedCPF, oldPositionTimestamp, PNL_OPTION_SPOT, new_price);
+
+  int liquidationMarginRatio = isOverFluctuationLimit(new_price) ? max(spotMarginRatio, getMarginRatioByOption(oldPositionSize, oldPositionMargin, oldPositionOpenNotional, oldPositionLastUpdatedCPF, oldPositionTimestamp, PNL_OPTION_ORACLE, new_price)) : spotMarginRatio;
+
+  ;; !requireMoreMarginRatio(liquidationMarginRatio, maintenanceMarginRatio(), false)
+  ;; || !requireOpenPosition(_trader)
+  ;; || !initialized()
+  ;; || paused()
+  ;; || isMarketClosed()
+  if (~ requireMoreMarginRatio(liquidationMarginRatio, db::maintenanceMarginRatio, false) | oldPositionSize == 0) {
+    ;; "Unable to liquidate"
+    unlock_position(sender_addr, 0, mode::carry_remaining_gas);
+    return ();
+  }
+
+  int isPartialLiquidation = (spotMarginRatio > db::liquidationFeeRatio) 
+  & (db::partialLiquidationRatio > 0)
+  & (db::partialLiquidationRatio < DECIMAL_UNIT);
+    
+  int positionSizeAbs = abs(oldPositionSize);
+
+  int liquidationRatio = 0;
+  int liquidationSize = 0;
+
+  ~dump(1);
+
+  if (isPartialLiquidation) {
+    liquidationRatio = divd(abs(liquidationSize), positionSizeAbs);
+    ;;     int _positionSize,
+    ;; int _positionMargin,
+    ;; int _positionOpenNotional,
+    ;; int _positionLastUpdatedCPF,
+    ;; int _positionTimestamp,
+    ;; int _option,
+    ;; int oraclePrice
+    liquidationSize = abs(getPartialLiquidationAmount(
+        oldPositionSize,
+        oldPositionMargin,
+        oldPositionOpenNotional,
+        oldPositionLastUpdatedCPF,
+        oldPositionTimestamp,
+        new_price));
+  } else {
+    liquidationSize = positionSizeAbs;
+  }
+
+  ~dump(2);
+
+
+  var (
+    int newPositionSize,
+    int newPositionMargin,
+    int newPositionOpenNotional,
+    int newPositionLstUpdCPF,
+    int positionBadDebt,
+    int realizedPnl,
+    int marginToTrader,
+    int quoteAssetReserveAfter,
+    int baseAssetReserveAfter,
+    int totalLongAfter,
+    int totalShortAfter,
+    int totalLongOpenInterestAfter,
+    int totalShortOpenInterestAfter,
+    int liquidationPenalty,
+    _
+  ) = internalClosePosition(
+    oldPositionSize,
+    oldPositionMargin,
+    oldPositionOpenNotional,
+    oldPositionLastUpdatedCPF,
+    oldPositionTimestamp,
+    isPartialLiquidation ? liquidationSize : positionSizeAbs,
+    db::liquidationFeeRatio,
+    0,
+    true,
+    false,
+    true,
+    new_price
+  );
+
+  ~dump(3);
+
+
+  int feeToLiquidator = liquidationPenalty / 2;
+  int feeToVault = liquidationPenalty - feeToLiquidator;
+
+  int ammBalance = db::balance - liquidationPenalty;
+  ;; int newAmmBalance = max(ammBalance, 0);
+
+  db::quoteAssetReserve = quoteAssetReserveAfter;
+  db::baseAssetReserve = baseAssetReserveAfter;
+  db::totalLongPositionSize = totalLongAfter;
+  db::totalShortPositionSize = totalShortAfter;
+  db::openInterestLong = totalLongOpenInterestAfter;
+  db::openInterestShort = totalShortOpenInterestAfter;
+  db::balance = max(ammBalance, 0);
+
+  int withdraw_ton_amount = 120000000; ;; TODO: calculate gas fee from config
+  int update_ton_amount = msg_value - withdraw_ton_amount;
+
+  ;; request_withdraw(query_id, feeToLiquidator, liquidator_addr, withdraw_ton_amount, mode::normal);
+
+  ~dump(67676767676);
+  ~dump(feeToLiquidator);
+  ~dump(newPositionSize);
+  ~dump(oldPositionSize);
+  ~dump(isPartialLiquidation);
+  ~dump(db::liquidationFeeRatio);
+
+  cell new_position_ref = pack_position_data(isPartialLiquidation ? (trader_addr, newPositionSize, newPositionMargin, newPositionOpenNotional, newPositionLstUpdCPF, get_position_fee(oldPositionFee), now()) : (trader_addr, 0, 0, 0, 0, 0, 0));
+  update_position(new_position_ref, op::liquidate, query_id, sender_addr, 0, mode::carry_remaining_gas);
+  ~dump(6767676769);
   save_data();
 }
 
@@ -516,7 +667,6 @@
   }
 
   if (op == op::add_margin) {
-    int jetton_amount = in_msg_body~load_coins();
     handle::add_margin(in_msg_body, prev_sender_addr, query_id, msg_value);
     return ();
   }
@@ -533,6 +683,11 @@
 
   if (op == op::pay_funding) {
     handle::pay_funding(in_msg_body, prev_sender_addr, query_id);
+    return ();
+  }
+
+  if (op == op::liquidate) {
+    handle::liquidate(in_msg_body, prev_sender_addr, query_id, msg_value);
     return ();
   }
 

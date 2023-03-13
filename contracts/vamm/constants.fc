@@ -2,15 +2,16 @@ const direction::long = 0;
 const direction::short = 1;
 
 const SECONDS = 60;
-const ONE_DAY = 86400;
+const ONE_DAY = 86400000000;
 
 const DECIMAL_UNIT = 1000000;
 const PNL_OPTION_SPOT = 1;
+const PNL_OPTION_ORACLE = 2;
 
 const MINUTES_IN_YEAR = 525600000000; ;; 525600 * DECIMAL_UNIT
 
-const fundingPeriodRaw = 3600;
-const fundingPeriodDecimal = 3600000000;
+const fundingPeriodRaw = 60;
+const fundingPeriodDecimal = 60000000;
 
 const FM::FUNDING_ASYMMETRIC = 1;
 const FM::FUNDING_SYMMETRIC = 2;

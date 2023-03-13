@@ -95,3 +95,45 @@
 
   request_position_and_price(db::oracle_addr, op::remove_margin, query_id, in_msg_body, trader_position_addr, position_state_init);
 }
+
+() request::pay_funding(slice in_msg_body, slice sender_addr, int query_id) impure inline {
+  load_data();
+
+  var body = begin_cell()
+    .store_uint(op::oracle_price_request, 32)
+    .store_slice(my_address()) ;; oracle redirect -> vamm address
+    .store_uint(op::pay_funding, 32)
+    .store_uint(query_id, 64);
+  
+  send_simple_message(0, db::oracle_addr, body, mode::carry_remaining_gas);
+}
+
+() request::liquidate(slice in_msg_body, slice liquidator_addr, int query_id) impure inline {
+  load_data();
+
+  slice to_liquidate_addr = in_msg_body~load_msg_addr();
+
+
+  ;; var body = begin_cell()
+  ;;   .store_uint(op::oracle_price_request, 32)
+  ;;   .store_slice(my_address()) ;; oracle redirect -> vamm address
+  ;;   .store_uint(op::pay_funding, 32)
+  ;;   .store_uint(query_id, 64);
+
+  cell position_wallet_code = db::extra_data_cell.begin_parse().preload_ref();
+  var (cell position_state_init, slice position_addr) = get_position_state_init_and_address(position_wallet_code, my_address(), to_liquidate_addr);
+
+  ;; TODO: refactor this to request
+  var body = begin_cell()
+    .store_uint(op::provide_position, 32)
+    .store_slice(db::oracle_addr) ;; position redirect -> oracle address
+    .store_uint(op::oracle_price_request, 32)
+    .store_slice(my_address()) ;; oracle redirect -> vamm address
+    .store_uint(op::liquidate, 32)
+    .store_uint(query_id, 64)
+    .store_slice(liquidator_addr)
+    .end_cell();
+  
+  send_message_with_stateinit(0, position_addr, position_state_init, body, mode::carry_remaining_gas);
+
+}

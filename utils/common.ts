@@ -35,3 +35,7 @@ export function addressToCell(addr: Address): Cell {
 }
 
 export const sleep = (ms: number) => new Promise((res) => setTimeout(res, ms));
+
+export function getCurrentTimestamp() {
+  return Math.floor(Date.now() / 1000);
+}

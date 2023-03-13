@@ -11,6 +11,8 @@ export const VammOpcodes = {
   withdraw: 0xcb03bfaf,
   setJettonWalletAddress: 0xee87d2d4,
   oraclePriceResponse: 0x96a426f1,
+  liquidate: 0xcc52bae3,
+  setOraclePrice: 0x1cabbe53,
 };
 
 export type ExchangeSettings = {

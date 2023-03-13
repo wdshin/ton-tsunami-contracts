@@ -1,5 +1,5 @@
 import { Address, Cell } from 'ton-core';
-import { toStablecoin } from '../../utils';
+import { getCurrentTimestamp, toStablecoin } from '../../utils';
 import { FundingMode, VammConfig } from './Vamm.types';
 
 export function initVammData({
@@ -50,7 +50,8 @@ export function initVammData({
         opts?.fundingState?.latestLongCumulativePremiumFraction ?? 0n,
       latestShortCumulativePremiumFraction:
         opts?.fundingState?.latestShortCumulativePremiumFraction ?? 0n,
-      nextFundingBlockTimestamp: opts?.fundingState?.nextFundingBlockTimestamp ?? 0n,
+      nextFundingBlockTimestamp:
+        opts?.fundingState?.nextFundingBlockTimestamp ?? BigInt(getCurrentTimestamp()),
       fundingMode: opts?.fundingState?.fundingMode ?? FundingMode.ASYMMETRIC,
       longFundingRate: opts?.fundingState?.longFundingRate ?? 0n,
       shortFundingRate: opts?.fundingState?.shortFundingRate ?? 0n,

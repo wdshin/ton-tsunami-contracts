@@ -2,3 +2,5 @@ const error::invalid_jetton = 400;
 const error::not_an_admin = 401;
 const error::invalid_jetton_amount = 402;
 const error::not_an_oracle = 403;
+
+const error::wrong_op = 0xffff;

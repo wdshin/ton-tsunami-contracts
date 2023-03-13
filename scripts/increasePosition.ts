@@ -8,7 +8,7 @@ import { Direction, Vamm } from '../wrappers/Vamm';
 const usdcAddr = Address.parse('kQBaYzBs3DaCEFtaE8fwQat_74IPBaLRQOTgZgPTPOVUDsFb');
 
 export async function run(provider: NetworkProvider) {
-  const vammAddress = Address.parse('EQBvysH8tXBOTKNqBuEmbZeYiPVaHXoIsdbGP2Q3nSzsLIMd');
+  const vammAddress = Address.parse('EQBfaXnAF14tqb3WJdbjlSNhb5Z0qkxUzEyLKiioRrBimi2s');
 
   const openedVamm = provider.open(Vamm.createFromAddress(vammAddress));
   const positionAddres = await openedVamm.getTraderPositionAddress(provider.sender().address!);
@@ -23,13 +23,13 @@ export async function run(provider: NetworkProvider) {
   const openedJW = provider.open(usdcJW);
 
   const forwardPayload = Vamm.increasePosition({
-    direction: Direction.long,
+    direction: Direction.short,
     leverage: toStablecoin(3),
     minBaseAssetAmount: toStablecoin(0.15),
   });
 
   await openedJW.sendTransfer(provider.sender(), toNano('0.2'), {
-    amount: toStablecoin(100),
+    amount: toStablecoin(1000),
     destination: vammAddress,
     forwardAmount: toNano('0.15'),
     responseDestination: provider.sender().address,

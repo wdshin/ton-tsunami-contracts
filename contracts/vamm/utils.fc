@@ -201,13 +201,18 @@ _ calcRemainMarginWithFundingPaymentAndRolloverFee(
   int fundingPayment = (_oldPositionSize != 0) ? muld((latestCumulativePremiumFraction(_oldPositionSize) - _oldPositionCumulativePremiumFraction), _oldPositionSize) : 0;
 
   int rolloverFee = calcRolloverFee(_oldPositionMargin, _oldPositionLastUpdatedTimestamp);
-  ~dump(90911);
-  ~dump(rolloverFee);
-  ~dump(_oldPositionMargin);
-  ~dump(_oldPositionLastUpdatedTimestamp);
-  ~dump(db::rolloverFee);
   int signedMargin = _marginDelta - rolloverFee - fundingPayment + _oldPositionMargin;
   var (int remainMargin, int badDebt) = signedMargin < 0 ? (0, abs(signedMargin)) : (abs(signedMargin), 0);
+  
+  ~dump(555);
+  ~dump(_marginDelta);
+  ~dump(rolloverFee);
+  ~dump(fundingPayment);
+  ~dump(_oldPositionMargin);
+  ~dump(remainMargin);
+  ~dump(signedMargin);
+  ~dump(fundingPayment);
+  ~dump(5550);
 
   return (remainMargin, badDebt, fundingPayment, rolloverFee);
 }
@@ -233,6 +238,9 @@ _ getSyncTerminalPrice(int _terminalPrice, int _qtAstR, int _bsAstR) inline {
   } else {
     ;; Compute new qW and bW
     int newQtAstW = getQuoteAssetWeight(_bsAstR, _positionSize, _qtAstR, _terminalPrice);
+
+    ~dump(2222);
+    ~dump(_terminalPrice);
 
     return newQtAstW;
   }
@@ -374,6 +382,14 @@ _ getPositionNotionalAndUnrealizedPnlByValues(
     oraclePrice
   );
 
+    ~dump(788888);
+    ~dump(positionNotional);
+    ~dump(_positionOpenNotional);
+    ~dump(_quoteAssetReserve);
+    ~dump(_quoteAssetWeight);
+    ~dump(_baseAssetReserve);
+    ~dump(_baseAssetWeight);
+
   int unrealizedPnl = isShort ? (_positionOpenNotional - positionNotional) : (positionNotional - _positionOpenNotional);
   return (
     positionNotional,
@@ -406,6 +422,24 @@ _ getMarginRatioByOption(
 
   return calcMarginRatio(remainMargin, badDebt, positionNotional);
 }
+
+;; Computes position spot margin ratio
+int getMarginRatio(
+  int _positionSize,
+  int _positionMargin,
+  int _positionOpenNotional,
+  int _positionLastUpdatedCPF,
+  int _positionTimestamp,
+  int oraclePrice) inline {
+    return getMarginRatioByOption(
+      _positionSize,
+      _positionMargin,
+      _positionOpenNotional,
+      _positionLastUpdatedCPF,
+      _positionTimestamp,
+      PNL_OPTION_SPOT,
+      oraclePrice);
+    }
 
 _ internalClosePosition(
   int oldPositionSize,
@@ -441,11 +475,15 @@ _ internalClosePosition(
     _size,
     _checkMaxPriceImpact);
 
+
+
   ;; exchangedPositionSize should always have a sign opposite to position
   ;; if position is short (-500) then +100 will decrease it (make it -400)
   ;; if position is long (500) then -100 will decrease it (make it 400)
   int exchangedPositionSize = oldPositionSize > 0 ? (- _size) : _size;
 
+  ~dump(713131313);
+  ~dump(db::quoteAssetWeight);
   ;; Compute actual notional value of position (notional value + pnl - funding)
   ;; and use it as a base to compute fee
   var (
@@ -604,15 +642,49 @@ int getSpotPrice() inline {
   int _quoteAssetReserve = db::quoteAssetReserve;
   int _baseAssetReserve = db::baseAssetReserve;
   int _qtAstW = db::quoteAssetWeight;
-  int _bsAstW = db::baseAssetWeight;
+  int _bsAstW = DECIMAL_UNIT;
 
   return divd(_quoteAssetReserve.muld(_qtAstW), _baseAssetReserve.muld(_bsAstW));
 }
 
+;; Computes partial liquidation position size
+int getPartialLiquidationAmount(        
+    _positionSize,
+    _positionMargin,
+    _positionOpenNotional,
+    _positionLastUpdatedCPF,
+    _positionTimestamp,
+    oracle_price
+  ) inline {
+
+
+  int margin_ratio = getMarginRatio(    
+    _positionSize,
+    _positionMargin,
+    _positionOpenNotional,
+    _positionLastUpdatedCPF,
+    _positionTimestamp,
+    oracle_price);    
+  int maximumRatio = max(db::partialLiquidationRatio, DECIMAL_UNIT - divd(margin_ratio, db::maintenanceMarginRatio));
+  int maxExchangedPositionSize = muld(abs(_positionSize), maximumRatio);
+  
+  var (_, _, _, _, _, priceImpact) = swapOutput(_positionSize > 0, maxExchangedPositionSize, false);
+
+  return priceImpact < db::maxPriceImpact ? maxExchangedPositionSize : muld(abs(_positionSize), db::partialLiquidationRatio);
+}
+
+;; Checks if stop price and index price diverge more then spreadLimit. Used to determine what price to use
+;; to compute liquidation. When isOverFluctuationLimit() == true, best of mark/index MR will be used 
+int isOverFluctuationLimit(int oraclePrice) inline {
+  int currentPrice = getSpotPrice();
+  return divd(abs(oraclePrice - currentPrice), oraclePrice) > db::spreadLimit;
+}
+
+
 (int, int, int) getFunding(int underlyingPrice) inline {
   int spotPrice = getSpotPrice();
   int premium = spotPrice - underlyingPrice;
-  
+
   ;; | isMarketClosed()
   if ((db::totalShortPositionSize == 0) | (db::totalLongPositionSize == 0)) {
     return (0, 0, 0);
@@ -635,12 +707,18 @@ int getSpotPrice() inline {
       ;; how much LP's will get 
       int premiumToVault = shortTotalPremiumFraction - longTotalPremiumFraction;
 
+
       return (shortPremiumFraction, shortPremiumFraction, premiumToVault);
     }
   } else {
     ;; underlyingPrice < spotPrice, need to push spotPrice DOWN, longs pays the shorts
     ;; how much to take from longs this funding period
     int longPremiumFraction = divd(muld(premium, fundingPeriodDecimal), ONE_DAY);
+
+    ~dump(211111);
+    ~dump(premium);
+    ~dump(fundingPeriodDecimal);
+    ~dump(ONE_DAY);
 
     if (db::fundingMode == FM::FUNDING_ASYMMETRIC) {
       int shortPremiumFraction = divd(muld(longPremiumFraction, db::totalLongPositionSize), db::totalShortPositionSize);

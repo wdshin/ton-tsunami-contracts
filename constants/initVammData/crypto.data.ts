@@ -1,0 +1,17 @@
+export const cryptoInitData = {
+  liquidity: 50000000,
+  fundingPeriod: 3600,
+  initMarginRatio: 0.05,
+  maintenanceMarginRatio: 0.015,
+  liquidationFeeRatio: 0.01,
+  fee: 0.0012,
+  spreadLimit: 0.01,
+  maxPriceImpact: 0.005,
+  partialLiquidationRatio: 0.15,
+  maxPriceSpread: 0.01,
+  maxOpenNotional: 500000,
+  feeToStakersPercent: 0.3,
+  maxOracleDelay: 10,
+  rolloverFee: 0.3,
+  fundingMode: 2,
+};

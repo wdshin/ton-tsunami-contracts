@@ -1,7 +1,9 @@
 import { EventMessageSent, Event } from '@ton-community/sandbox/dist/event/Event';
 import { Address } from 'ton-core';
+import { OraclePrice } from '../wrappers/Oracle/Oracle.types';
 import { PositionData, unpackPositionData } from '../wrappers/TraderPositionWallet';
 import { unpackWithdrawMessage } from '../wrappers/Vamm';
+import { toStablecoin } from './common';
 
 function extractEventAtIndex(events: Event[], index = -1): EventMessageSent {
   const lastVammTx = events.at(index);
@@ -27,5 +29,13 @@ export function getInitPosition(traderAddress: Address): PositionData {
     fee: 0n,
     lastUpdatedTimestamp: 0n,
     traderAddress,
+  };
+}
+
+export function getOraclePrice(price: number): OraclePrice {
+  return {
+    price: toStablecoin(price),
+    lastUpdateBlockLT: 0,
+    lastUpdateTS: 0,
   };
 }

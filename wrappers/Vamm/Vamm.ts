@@ -8,7 +8,7 @@ import {
   Sender,
   SendMode,
 } from 'ton';
-import { addressToCell } from '../../utils';
+import { addressToCell, BigMath, toStablecoin } from '../../utils';
 import { packOraclePrice } from '../Oracle/Oracle';
 import { OraclePrice } from '../Oracle/Oracle.types';
 import { packPositionData, PositionData } from '../TraderPositionWallet';
@@ -152,7 +152,8 @@ export function packIncreasePositionBody(body: IncreasePositionBody): Cell {
 
 export function unpackWithdrawMessage(body: Cell) {
   const cs = body.beginParse();
-  if (cs.loadUint(32) !== VammOpcodes.withdraw) throw new Error('Not a withdraw message');
+  if (cs.loadUint(32) !== 0xf8a7ea5) throw new Error('Not a withdraw message');
+
   return {
     queryId: cs.loadUint(64),
     amount: cs.loadCoins(),
@@ -182,7 +183,7 @@ export class Vamm implements Contract {
     return beginCell()
       .storeUint(VammOpcodes.closePosition, 32)
       .storeUint(opts.queryID ?? 0, 64)
-      .storeInt(opts.size, 128)
+      .storeInt(BigMath.abs(opts.size), 128)
       .storeCoins(opts.minQuoteAssetAmount ?? 0)
       .storeBit(opts.addToMargin ?? false)
       .endCell();
@@ -190,19 +191,33 @@ export class Vamm implements Contract {
 
   static closePositionRaw(opts: {
     queryID?: number;
-    oldPosition: PositionData;
     addToMargin?: boolean;
     size?: bigint;
     minQuoteAssetAmount?: bigint;
+    oracleRedirectAddress: Address;
+    oldPosition: PositionData;
+    priceData: OraclePrice;
   }) {
     return beginCell()
+      .storeUint(VammOpcodes.oraclePriceResponse, 32)
+      .storeAddress(opts.oracleRedirectAddress)
       .storeUint(VammOpcodes.closePosition, 32)
       .storeUint(opts.queryID ?? 0, 64)
-      .storeInt(opts.size ?? opts.oldPosition.size, 128)
-      .storeCoins(opts.minQuoteAssetAmount ?? 0)
-      .storeBit(opts.addToMargin ?? false)
+      .storeRef(
+        beginCell()
+          .storeInt(BigMath.abs(opts.size ?? opts.oldPosition.size), 128)
+          .storeCoins(opts.minQuoteAssetAmount ?? 0)
+          .storeBit(opts.addToMargin ?? false)
+          .endCell()
+      )
       .storeRef(packPositionData(opts.oldPosition))
+      .storeRef(packOraclePrice(opts.priceData))
       .endCell();
+    // return beginCell()
+    //   .storeUint(VammOpcodes.closePosition, 32)
+    //   .storeUint(opts.queryID ?? 0, 64)
+    //   .storeRef(packPositionData(opts.oldPosition))
+    //   .endCell();
   }
 
   static addMargin(opts: { queryID?: number; oldPosition: PositionData; amount: bigint }) {
@@ -214,12 +229,48 @@ export class Vamm implements Contract {
       .endCell();
   }
 
+  static addMarginRaw(opts: {
+    queryID?: number;
+    oldPosition: PositionData;
+    amount: bigint;
+    priceData: OraclePrice;
+    oracleRedirectAddress: Address;
+  }) {
+    return beginCell()
+      .storeUint(VammOpcodes.oraclePriceResponse, 32)
+      .storeAddress(opts.oracleRedirectAddress)
+      .storeUint(VammOpcodes.addMargin, 32)
+      .storeUint(opts.queryID ?? 0, 64)
+      .storeCoins(opts.amount)
+      .storeRef(packPositionData(opts.oldPosition))
+      .storeRef(packOraclePrice(opts.priceData))
+      .endCell();
+  }
+
   static removeMargin(opts: { queryID?: number; oldPosition: PositionData; amount: bigint }) {
     return beginCell()
       .storeUint(VammOpcodes.removeMargin, 32)
       .storeUint(opts.queryID ?? 0, 64)
       .storeCoins(opts.amount)
       .storeRef(packPositionData(opts.oldPosition))
+      .endCell();
+  }
+
+  static removeMarginRaw(opts: {
+    queryID?: number;
+    amount: bigint;
+    oldPosition: PositionData;
+    oracleRedirectAddress: Address;
+    priceData: OraclePrice;
+  }) {
+    return beginCell()
+      .storeUint(VammOpcodes.oraclePriceResponse, 32)
+      .storeAddress(opts.oracleRedirectAddress)
+      .storeUint(VammOpcodes.removeMargin, 32)
+      .storeUint(opts.queryID ?? 0, 64)
+      .storeCoins(opts.amount)
+      .storeRef(packPositionData(opts.oldPosition))
+      .storeRef(packOraclePrice(opts.priceData))
       .endCell();
   }
 
@@ -294,16 +345,104 @@ export class Vamm implements Contract {
     opts: {
       value: bigint;
       queryID?: number;
-      price: bigint;
+      price: number;
     }
   ) {
     await provider.internal(via, {
       value: opts.value,
       sendMode: SendMode.PAY_GAS_SEPARATELY,
       body: beginCell()
-        .storeUint(VammOpcodes.tempSetPrice, 32)
+        .storeUint(VammOpcodes.setOraclePrice, 32)
         .storeUint(opts.queryID ?? 0, 64)
-        .storeCoins(opts.price)
+        .storeCoins(toStablecoin(opts.price))
+        .endCell(),
+    });
+  }
+
+  async sendLiquidate(
+    provider: ContractProvider,
+    via: Sender,
+    opts: {
+      value: bigint;
+      queryID?: number;
+      liquidator: Address;
+    }
+  ) {
+    await provider.internal(via, {
+      value: opts.value,
+      sendMode: SendMode.PAY_GAS_SEPARATELY,
+      body: beginCell()
+        .storeUint(VammOpcodes.liquidate, 32)
+        .storeUint(opts.queryID ?? 0, 64)
+        .storeAddress(opts.liquidator)
+        .endCell(),
+    });
+  }
+
+  async sendLiquidateRaw(
+    provider: ContractProvider,
+    via: Sender,
+    opts: {
+      value: bigint;
+      queryID?: number;
+      liquidator: Address;
+      oracleRedirectAddress: Address;
+      oldPosition: PositionData;
+      priceData: OraclePrice;
+    }
+  ) {
+    await provider.internal(via, {
+      value: opts.value,
+      sendMode: SendMode.PAY_GAS_SEPARATELY,
+      body: beginCell()
+        .storeUint(VammOpcodes.oraclePriceResponse, 32)
+        .storeAddress(opts.oracleRedirectAddress)
+        .storeUint(VammOpcodes.liquidate, 32)
+        .storeUint(opts.queryID ?? 0, 64)
+        .storeAddress(opts.liquidator)
+        .storeRef(packPositionData(opts.oldPosition))
+        .storeRef(packOraclePrice(opts.priceData))
+        .endCell(),
+    });
+  }
+
+  async sendPayFunding(
+    provider: ContractProvider,
+    via: Sender,
+    opts: {
+      value: bigint;
+      queryID?: number;
+    }
+  ) {
+    await provider.internal(via, {
+      value: opts.value,
+      sendMode: SendMode.PAY_GAS_SEPARATELY,
+      body: beginCell()
+        .storeUint(VammOpcodes.payFunding, 32)
+        .storeUint(opts.queryID ?? 0, 64)
+        .endCell(),
+    });
+  }
+
+  async sendPayFundingRaw(
+    provider: ContractProvider,
+    via: Sender,
+    opts: {
+      value: bigint;
+      queryID?: number;
+      oracleRedirectAddress: Address;
+      priceData: OraclePrice;
+    }
+  ) {
+    await provider.internal(via, {
+      value: opts.value,
+      sendMode: SendMode.PAY_GAS_SEPARATELY,
+      body: beginCell()
+        .storeUint(VammOpcodes.oraclePriceResponse, 32)
+        .storeAddress(opts.oracleRedirectAddress)
+        .storeUint(VammOpcodes.payFunding, 32)
+        .storeUint(opts.queryID ?? 0, 64)
+        .storeRef(packOraclePrice(opts.priceData))
         .endCell(),
     });
   }
@@ -315,9 +454,9 @@ export class Vamm implements Contract {
       value: bigint;
       queryID?: number;
       amount: bigint;
-      oracleRedirectAddress: Address;
       oldPosition: PositionData;
       priceData: OraclePrice;
+      oracleRedirectAddress: Address;
       increasePositionBody: IncreasePositionBody;
     }
   ) {
@@ -335,13 +474,15 @@ export class Vamm implements Contract {
       value: bigint;
       queryID?: number;
       oldPosition: PositionData;
+      priceData: OraclePrice;
+      oracleRedirectAddress: Address;
       amount: bigint;
     }
   ) {
     await provider.internal(via, {
       value: opts.value,
       sendMode: SendMode.PAY_GAS_SEPARATELY,
-      body: Vamm.addMargin(opts),
+      body: Vamm.addMarginRaw(opts),
     });
   }
 
@@ -351,14 +492,16 @@ export class Vamm implements Contract {
     opts: {
       value: bigint;
       queryID?: number;
-      oldPosition: PositionData;
       amount: bigint;
+      oracleRedirectAddress: Address;
+      oldPosition: PositionData;
+      priceData: OraclePrice;
     }
   ) {
     await provider.internal(via, {
       value: opts.value,
       sendMode: SendMode.PAY_GAS_SEPARATELY,
-      body: Vamm.removeMargin(opts),
+      body: Vamm.removeMarginRaw(opts),
     });
   }
 
@@ -368,10 +511,12 @@ export class Vamm implements Contract {
     opts: {
       value: bigint;
       queryID?: number;
-      oldPosition: PositionData;
       addToMargin?: boolean;
       size?: bigint;
       minQuoteAssetAmount?: bigint;
+      oracleRedirectAddress: Address;
+      oldPosition: PositionData;
+      priceData: OraclePrice;
     }
   ) {
     await provider.internal(via, {

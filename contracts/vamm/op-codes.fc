@@ -9,3 +9,6 @@ const op::withdraw = "op::withdraw"c;
 const op::unlock_position = "op::unlock_position"c;
 const op::provide_position = "op::provide_position"c;
 const op::set_jetton_wallet_address = "op::set_jetton_wallet_address"c;
+const op::update_amm = "op::update_amm"c;
+const op::liquidate = "op::liquidate"c;
+const op::set_oracle_price = "op::set_oracle_price"c;
