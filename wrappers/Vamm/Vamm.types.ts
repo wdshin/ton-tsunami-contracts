@@ -18,7 +18,7 @@ export const VammOpcodes = {
 export type ExchangeSettings = {
   fee: bigint;
   rolloverFee: bigint;
-  fundingPeriod: bigint;
+  fundingPeriod: bigint | number;
   initMarginRatio: bigint;
   maintenanceMarginRatio: bigint;
   liquidationFeeRatio: bigint;
@@ -28,7 +28,7 @@ export type ExchangeSettings = {
   maxPriceSpread: bigint;
   maxOpenNotional: bigint;
   feeToStakersPercent: bigint;
-  maxOracleDelay: bigint;
+  maxOracleDelay: bigint | number;
 };
 
 export type AmmState = {

@@ -1,6 +1,2 @@
-export const IndexIds = {
-  TON: 1,
-  BTC: 2,
-  EUR: 3,
-  TSLA: 4,
-};
+export * from './indexIds';
+export * from './initVammData';
