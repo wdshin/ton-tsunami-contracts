@@ -9,7 +9,7 @@ describe('TraderPositionWallet', () => {
   let code: Cell;
 
   beforeAll(async () => {
-    code = await compile('TraderPositionWallet');
+    code = await compile('PositionWallet');
   });
 
   it('should deploy', async () => {
@@ -79,13 +79,10 @@ describe('TraderPositionWallet', () => {
 
       console.log('increasing by', increaseBy);
 
-      const increaseResult = await traderPositionWallet.sendIncrease(
-        increaser.getSender(),
-        {
-          increaseBy,
-          value: toNano('0.05'),
-        }
-      );
+      const increaseResult = await traderPositionWallet.sendIncrease(increaser.getSender(), {
+        increaseBy,
+        value: toNano('0.05'),
+      });
 
       expect(increaseResult.transactions).toHaveTransaction({
         from: increaser.address,

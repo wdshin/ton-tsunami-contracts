@@ -35,7 +35,7 @@ export async function run(provider: NetworkProvider) {
       indexId,
       jettonWalletAddress: Address.parse('EQAAehIG5Lsju35hFo9ZuCdsmZf-pRtlpuTQHQC1YKY0CAl2'),
       oracleAddress: oracle.address,
-      positionWalletCode: await compile('TraderPositionWallet'),
+      positionWalletCode: await compile('PositionWallet'),
       adminAddress: provider.sender().address!,
       vaultAddress: provider.sender().address!, // TODO: later add vault address
     });

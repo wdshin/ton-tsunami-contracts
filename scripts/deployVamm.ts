@@ -19,7 +19,7 @@ export async function run(provider: NetworkProvider) {
         oracleAddress,
         // @ts-ignore
         extraData: {
-          positionWalletCode: await compile('TraderPositionWallet'),
+          positionWalletCode: await compile('PositionWallet'),
           adminAddress: provider.sender().address!,
         },
       },

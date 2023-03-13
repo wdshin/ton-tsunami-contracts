@@ -10,7 +10,7 @@ export async function run(provider: NetworkProvider) {
   const router = Router.createFromConfig(
     {
       vammCode: await compile('Vamm'),
-      traderPositionWalletCode: await compile('TraderPositionWallet'),
+      traderPositionWalletCode: await compile('PositionWallet'),
       adminAddress: deployerAddress,
       whitelistedJettonWalletAddress: Address.parse(
         'EQBKC9p-r_n6ViJqmxTG5QlytLMaDhyQ9DRb5i1xEcfI5JJE' // any, will be overwritten
