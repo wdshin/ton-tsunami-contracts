@@ -10,7 +10,7 @@ const PNL_OPTION_ORACLE = 2;
 
 const MINUTES_IN_YEAR = 525600000000; ;; 525600 * DECIMAL_UNIT
 
-const fundingPeriodRaw = 60;
+const fundingPeriodRaw = 3600;
 const fundingPeriodDecimal = 60000000;
 
 const FM::FUNDING_ASYMMETRIC = 1;
