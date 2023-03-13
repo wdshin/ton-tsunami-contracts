@@ -2,7 +2,7 @@
 #include "../shared/messages.fc";
 #include "../shared/utils.fc";
 
-#include "../trader_position_wallet/packers.fc";
+#include "../position-wallet/packers.fc";
 
 #include "./constants.fc";
 #include "./storage.fc";

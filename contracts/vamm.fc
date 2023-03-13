@@ -13,7 +13,7 @@
 #include "vamm/handlers.fc";
 #include "vamm/requests.fc";
 
-#include "trader_position_wallet/packers.fc";
+#include "position-wallet/packers.fc";
 
 #include "oracle/op-codes.fc";
 

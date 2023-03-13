@@ -1,10 +1,10 @@
 import { Address, toNano } from 'ton-core';
-import { Oracle } from '../wrappers/Oracle/Oracle';
+import { Oracle } from '../wrappers/Oracle';
 import { compile, NetworkProvider } from '@ton-community/blueprint';
 import { configTypeByIndexName, cryptoInitData, forexInitData, IndexIds } from '../constants';
 import { Vamm } from '../wrappers/Vamm';
-import { initVammData, initVammDataFromConfig } from '../wrappers/Vamm/Vamm.data';
-import { JettonWallet } from '../wrappers/JettonWallet/JettonWallet';
+import { initVammDataFromConfig } from '../wrappers/Vamm/Vamm.data';
+import { JettonWallet } from '../wrappers/JettonWallet';
 
 export async function run(provider: NetworkProvider) {
   const broadcasterAddress = Address.parse('EQCogh0uaL1-p7nBx4eB8yIrH2Pf5qQ5ZUUeS4on5VzAkQHH');

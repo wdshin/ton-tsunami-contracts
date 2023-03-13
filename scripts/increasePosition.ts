@@ -2,7 +2,7 @@ import { Address, toNano } from 'ton-core';
 import { NetworkProvider } from '@ton-community/blueprint';
 import { Router } from '../wrappers/Router/Router';
 import { toStablecoin } from '../utils';
-import { JettonWallet } from '../wrappers/JettonWallet/JettonWallet';
+import { JettonWallet } from '../wrappers/JettonWallet';
 import { Direction, Vamm } from '../wrappers/Vamm';
 
 const usdcAddr = Address.parse('kQBaYzBs3DaCEFtaE8fwQat_74IPBaLRQOTgZgPTPOVUDsFb');

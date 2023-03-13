@@ -1,7 +1,6 @@
 import {
   Blockchain,
   BlockchainStorage,
-  BlockchainTransaction,
   LocalBlockchainStorage,
   MessageParams,
 } from '@ton-community/sandbox';

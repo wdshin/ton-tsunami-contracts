@@ -3,8 +3,8 @@
 #include "shared/stdlib.fc";
 #include "shared/messages.fc";
 
-#include "trader_position_wallet/storage.fc";
-#include "trader_position_wallet/op-codes.fc";
+#include "position-wallet/storage.fc";
+#include "position-wallet/op-codes.fc";
 
 ;; should unlock position state on provide_position bounce
 () on_bounce(slice in_msg_body) impure inline { 

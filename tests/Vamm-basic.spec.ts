@@ -1,20 +1,21 @@
 import '@ton-community/test-utils';
 import { compile } from '@ton-community/blueprint';
 import { SandboxContract, TreasuryContract } from '@ton-community/sandbox';
+import { extractEvents } from '@ton-community/sandbox/dist/event/Event';
 import { toNano } from 'ton-core';
 
 import { Direction, IncreasePositionBody, Vamm } from '../wrappers/Vamm';
 import { initVammData } from '../wrappers/Vamm/Vamm.data';
 import { PositionData } from '../wrappers/TraderPositionWallet';
+import { OraclePrice } from '../wrappers/Oracle';
+import { MyBlockchain } from '../wrappers/MyBlockchain/MyBlockchain';
+
 import {
   getAndUnpackPosition,
   getAndUnpackWithdrawMessage,
   getInitPosition,
   toStablecoin,
 } from '../utils';
-import { extractEvents } from '@ton-community/sandbox/dist/event/Event';
-import { OraclePrice } from '../wrappers/Oracle/Oracle.types';
-import { MyBlockchain } from '../wrappers/MyBlockchain/MyBlockchain';
 
 const priceData: OraclePrice = {
   price: toStablecoin(55),
@@ -31,12 +32,10 @@ describe('vAMM should work with positive funding', () => {
   let shorter: SandboxContract<TreasuryContract>;
   let shorterPosition: SandboxContract<TreasuryContract>;
   let lastShorterPosition: PositionData;
-  let router: SandboxContract<TreasuryContract>;
   let jettonWallet: SandboxContract<TreasuryContract>;
   let oracle: SandboxContract<TreasuryContract>;
 
   beforeAll(async () => {
-    // blockchain = await Blockchain.create();
     blockchain = await MyBlockchain.create();
     // blockchain.verbosity = {
     //   print: true,
@@ -55,7 +54,6 @@ describe('vAMM should work with positive funding', () => {
     shorterPosition = await blockchain.treasury('shorterPosition');
     lastShorterPosition = getInitPosition(shorter.address);
 
-    router = await blockchain.treasury('router');
     vamm = blockchain.openContract(
       Vamm.createFromConfig(
         initVammData({
@@ -155,12 +153,11 @@ describe('vAMM should work with positive funding', () => {
       to: longerPosition.address,
     });
 
-    const newPosition = getAndUnpackPosition(addMarginResult.events);
-    lastLongerPosition = newPosition;
+    lastLongerPosition = getAndUnpackPosition(addMarginResult.events);
 
-    expect(newPosition.size).toBe(814882n);
-    expect(newPosition.margin).toBe(17946194n);
-    expect(newPosition.openNotional).toBe(44838582n);
+    expect(lastLongerPosition.size).toBe(814882n);
+    expect(lastLongerPosition.margin).toBe(17946194n);
+    expect(lastLongerPosition.openNotional).toBe(44838582n);
   });
 
   it('Can remove margin', async () => {

@@ -1,7 +1,7 @@
 import { Address, toNano } from 'ton-core';
 import { Router } from '../wrappers/Router/Router';
 import { compile, NetworkProvider } from '@ton-community/blueprint';
-import { JettonWallet } from '../wrappers/JettonWallet/JettonWallet';
+import { JettonWallet } from '../wrappers/JettonWallet';
 import { Vamm } from '../wrappers/Vamm';
 import { sleep } from '../utils';
 

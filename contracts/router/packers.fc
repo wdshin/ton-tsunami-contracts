@@ -1,6 +1,6 @@
 #include "../shared/stdlib.fc";
 
-#include "../trader_position_wallet/packers.fc";
+#include "../position-wallet/packers.fc";
 #include "../vamm/packers.fc";
 
 cell pack_vamm_data(slice router_addr, cell trader_position_wallet_code) inline_ref {

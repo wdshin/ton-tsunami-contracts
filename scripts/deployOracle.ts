@@ -1,5 +1,5 @@
 import { Address, toNano } from 'ton-core';
-import { Oracle } from '../wrappers/Oracle/Oracle';
+import { Oracle } from '../wrappers/Oracle';
 import { compile, NetworkProvider } from '@ton-community/blueprint';
 import { IndexIds } from '../constants';
 

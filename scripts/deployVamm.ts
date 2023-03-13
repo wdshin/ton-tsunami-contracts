@@ -3,7 +3,7 @@ import { compile, NetworkProvider } from '@ton-community/blueprint';
 
 import { Vamm } from '../wrappers/Vamm/Vamm';
 import { initVammData } from '../wrappers/Vamm/Vamm.data';
-import { JettonWallet } from '../wrappers/JettonWallet/JettonWallet';
+import { JettonWallet } from '../wrappers/JettonWallet';
 import { IndexIds } from '../constants';
 
 export async function run(provider: NetworkProvider) {

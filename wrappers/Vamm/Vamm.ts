@@ -9,8 +9,7 @@ import {
   SendMode,
 } from 'ton';
 import { addressToCell, BigMath, toStablecoin, toStablecoinFloat } from '../../utils';
-import { packOraclePrice } from '../Oracle/Oracle';
-import { OraclePrice } from '../Oracle/Oracle.types';
+import { OraclePrice, packOraclePrice } from '../Oracle';
 import { packPositionData, PositionData } from '../TraderPositionWallet';
 
 import {

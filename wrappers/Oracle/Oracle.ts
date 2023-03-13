@@ -8,7 +8,7 @@ import {
   Sender,
   SendMode,
 } from 'ton-core';
-import { stringToCell } from '../../utils';
+
 import { OracleConfig, OracleOpcodes, OraclePrice } from './Oracle.types';
 
 export function packOraclePrice(data: OraclePrice) {

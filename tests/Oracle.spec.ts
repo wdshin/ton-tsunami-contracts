@@ -1,6 +1,6 @@
 import { Blockchain, SandboxContract } from '@ton-community/sandbox';
 import { Cell, toNano } from 'ton-core';
-import { Oracle } from '../wrappers/Oracle/Oracle';
+import { Oracle } from '../wrappers/Oracle';
 import '@ton-community/test-utils';
 import { compile } from '@ton-community/blueprint';
 
