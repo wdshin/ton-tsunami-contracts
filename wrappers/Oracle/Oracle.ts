@@ -76,6 +76,24 @@ export class Oracle implements Contract {
     });
   }
 
+  async sendRequestPrice(
+    provider: ContractProvider,
+    via: Sender,
+    opts: {
+      value: bigint;
+      redirectAddress: Address;
+    }
+  ) {
+    await provider.internal(via, {
+      value: opts.value,
+      sendMode: SendMode.PAY_GAS_SEPARATELY,
+      body: beginCell()
+        .storeUint(OracleOpcodes.oraclePriceRequest, 32)
+        .storeAddress(opts.redirectAddress)
+        .endCell(),
+    });
+  }
+
   async getOracleData(provider: ContractProvider) {
     const { stack } = await provider.get('get_oracle_data', []);
     return {
