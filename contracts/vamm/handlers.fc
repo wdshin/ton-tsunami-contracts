@@ -118,7 +118,7 @@
 
   cell new_position_ref = pack_position_data(trader_addr, newPositionSize, newPositionMargin, newPositionOpenNotional, newPositionLatestCPF, get_position_fee(old_position_fee), now());
   ;; TODO: calculate value and mode
-  update_position(new_position_ref, op::increase_position, query_id, sender_addr, 0, mode::carry_remaining_gas);
+  update_position(new_position_ref, op::increase_position, query_id, sender_addr, 0, mode::carry_remaining_gas + mode::ignore_errors);
 
   ;; TODO: need this?
   ;; raw_reserve(100000, 0);

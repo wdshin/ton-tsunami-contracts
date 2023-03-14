@@ -1,20 +1,19 @@
 import '@ton-community/test-utils';
 import { compile } from '@ton-community/blueprint';
 import { SandboxContract, TreasuryContract } from '@ton-community/sandbox';
-import { extractEvents } from '@ton-community/sandbox/dist/event/Event';
 import { toNano } from 'ton-core';
 
 import { Direction, IncreasePositionBody, Vamm, VammOpcodes } from '../wrappers/Vamm';
 import { initVammData } from '../wrappers/Vamm/Vamm.data';
-import { PositionData } from '../wrappers/PositionWallet';
+import { PositionData, PositionWallet } from '../wrappers/PositionWallet';
 import { OraclePrice } from '../wrappers/Oracle';
 import { MyBlockchain } from '../wrappers/MyBlockchain/MyBlockchain';
 
 import {
-  getAndUnpackPosition,
-  getAndUnpackWithdrawMessage,
-  getInitPosition,
+  getUpdatePositionMessage,
+  getWithdrawMessage,
   toStablecoin,
+  bootstrapTrader,
 } from '../utils';
 
 const priceData: OraclePrice = {
@@ -26,33 +25,23 @@ const priceData: OraclePrice = {
 describe('vAMM should work with positive funding', () => {
   let blockchain: MyBlockchain;
   let vamm: SandboxContract<Vamm>;
+
   let longer: SandboxContract<TreasuryContract>;
-  let longerPosition: SandboxContract<TreasuryContract>;
+  let longerPosition: SandboxContract<PositionWallet>;
   let lastLongerPosition: PositionData;
+
   let shorter: SandboxContract<TreasuryContract>;
-  let shorterPosition: SandboxContract<TreasuryContract>;
+  let shorterPosition: SandboxContract<PositionWallet>;
   let lastShorterPosition: PositionData;
+
   let jettonWallet: SandboxContract<TreasuryContract>;
   let oracle: SandboxContract<TreasuryContract>;
 
   beforeAll(async () => {
     blockchain = await MyBlockchain.create();
-    // blockchain.verbosity = {
-    //   print: true,
-    //   vmLogs: 'vm_logs',
-    //   blockchainLogs: true,
-    //   debugLogs: true,
-    // };
 
     oracle = await blockchain.treasury('oracle');
     jettonWallet = await blockchain.treasury('jettonWallet');
-    longer = await blockchain.treasury('longer');
-    longerPosition = await blockchain.treasury('longerPosition');
-    lastLongerPosition = getInitPosition(longer.address);
-
-    shorter = await blockchain.treasury('shorter');
-    shorterPosition = await blockchain.treasury('shorterPosition');
-    lastShorterPosition = getInitPosition(shorter.address);
 
     vamm = blockchain.openContract(
       Vamm.createFromConfig(
@@ -64,6 +53,17 @@ describe('vAMM should work with positive funding', () => {
         }),
         await compile('Vamm')
       )
+    );
+
+    [longer, lastLongerPosition, longerPosition] = await bootstrapTrader(
+      blockchain,
+      vamm.address,
+      'longer'
+    );
+    [shorter, lastShorterPosition, shorterPosition] = await bootstrapTrader(
+      blockchain,
+      vamm.address,
+      'shorter'
     );
 
     const deployer = await blockchain.treasury('deployer');
@@ -89,7 +89,7 @@ describe('vAMM should work with positive funding', () => {
       to: longerPosition.address,
     });
 
-    const newPosition = getAndUnpackPosition(increaseResult.events);
+    const newPosition = getUpdatePositionMessage(increaseResult.events);
 
     expect(newPosition.size).toBe(543336n);
     expect(newPosition.margin).toBe(9964129n);
@@ -124,7 +124,7 @@ describe('vAMM should work with positive funding', () => {
       to: longerPosition.address,
     });
 
-    const newPosition = getAndUnpackPosition(increaseResult.events);
+    const newPosition = getUpdatePositionMessage(increaseResult.events);
 
     expect(newPosition.size).toBe(814882n);
     expect(newPosition.margin).toBe(14946194n);
@@ -153,12 +153,14 @@ describe('vAMM should work with positive funding', () => {
       to: longerPosition.address,
     });
 
-    lastLongerPosition = getAndUnpackPosition(addMarginResult.events);
+    lastLongerPosition = getUpdatePositionMessage(addMarginResult.events);
 
     expect(lastLongerPosition.size).toBe(814882n);
     expect(lastLongerPosition.margin).toBe(17946194n);
     expect(lastLongerPosition.openNotional).toBe(44838582n);
   });
+
+  // return;
 
   it('Can remove margin', async () => {
     const removeMarginResult = await vamm.sendRemoveMarginRaw(oracle.getSender(), {
@@ -174,7 +176,7 @@ describe('vAMM should work with positive funding', () => {
       to: longerPosition.address,
     });
 
-    const newPosition = getAndUnpackPosition(removeMarginResult.events);
+    const newPosition = getUpdatePositionMessage(removeMarginResult.events);
     lastLongerPosition = newPosition;
 
     expect(newPosition.size).toBe(814882n);
@@ -218,7 +220,7 @@ describe('vAMM should work with positive funding', () => {
       to: shorterPosition.address,
     });
 
-    const newPosition = getAndUnpackPosition(increaseResult.events);
+    const newPosition = getUpdatePositionMessage(increaseResult.events);
     lastShorterPosition = newPosition;
 
     expect(newPosition.size).toBe(-271546n);
@@ -245,7 +247,7 @@ describe('vAMM should work with positive funding', () => {
       from: vamm.address,
       to: shorterPosition.address,
     });
-    const newPosition = getAndUnpackPosition(increaseResult.events);
+    const newPosition = getUpdatePositionMessage(increaseResult.events);
     lastShorterPosition = newPosition;
 
     expect(newPosition.size).toBe(-325865n);
@@ -280,10 +282,10 @@ describe('vAMM should work with positive funding', () => {
       to: jettonWallet.address,
     });
 
-    const newPosition = getAndUnpackPosition(closeResult.events, 2);
+    const newPosition = getUpdatePositionMessage(closeResult.events);
     lastLongerPosition = newPosition;
 
-    const withdrawMsg = getAndUnpackWithdrawMessage(closeResult.events, 1);
+    const withdrawMsg = getWithdrawMessage(closeResult.events);
     expect(withdrawMsg.amount).toBe(15876342n);
   });
 
@@ -304,10 +306,10 @@ describe('vAMM should work with positive funding', () => {
       from: vamm.address,
       to: jettonWallet.address,
     });
-    const newPosition = getAndUnpackPosition(closeResult.events, 2);
+    const newPosition = getUpdatePositionMessage(closeResult.events);
     lastShorterPosition = newPosition;
 
-    const withdrawMsg = getAndUnpackWithdrawMessage(closeResult.events, 1);
+    const withdrawMsg = getWithdrawMessage(closeResult.events);
     expect(withdrawMsg.amount).toBe(5973063n); // 5994549n
   });
 
@@ -330,7 +332,7 @@ describe('vAMM should work with positive funding', () => {
       to: longerPosition.address,
     });
 
-    const p1 = getAndUnpackPosition(increaseResult.events);
+    const p1 = getUpdatePositionMessage(increaseResult.events);
     lastLongerPosition = p1;
     expect(p1.size).toBe(8116078n);
     expect(p1.margin).toBe(149461937n);
@@ -346,14 +348,14 @@ describe('vAMM should work with positive funding', () => {
       oracleRedirectAddress: longerPosition.address,
     });
 
-    const p2 = getAndUnpackPosition(pcResult.events, 2);
+    const p2 = getUpdatePositionMessage(pcResult.events);
     lastLongerPosition = p2;
 
     expect(p2.size).toBe(4116078n);
     expect(p2.margin).toBe(75632573n);
     expect(p2.openNotional).toBe(226897950n);
 
-    const withdrawMsg = getAndUnpackWithdrawMessage(pcResult.events, 1);
+    const withdrawMsg = getWithdrawMessage(pcResult.events);
     expect(withdrawMsg.amount).toBe(73564181n);
 
     blockchain.now += 1;
@@ -364,7 +366,7 @@ describe('vAMM should work with positive funding', () => {
       oracleRedirectAddress: longerPosition.address,
     });
 
-    const withdrawMsg2 = getAndUnpackWithdrawMessage(closeResult.events, 1);
+    const withdrawMsg2 = getWithdrawMessage(closeResult.events);
     expect(withdrawMsg2.amount).toBe(75360296n);
   });
 });

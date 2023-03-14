@@ -5,15 +5,16 @@ import { toNano } from 'ton-core';
 
 import { Direction, Vamm } from '../wrappers/Vamm';
 import { initVammData } from '../wrappers/Vamm/Vamm.data';
-import { PositionData } from '../wrappers/PositionWallet';
+import { PositionData, PositionWallet } from '../wrappers/PositionWallet';
 import {
-  getAndUnpackWithdrawMessage,
+  getWithdrawMessage,
   getInitPosition,
   getOraclePrice,
   toStablecoin,
   toStablecoinFloat,
+  bootstrapTrader,
 } from '../utils';
-import { getAndUnpackPosition } from '../utils';
+import { getUpdatePositionMessage } from '../utils';
 import { MyBlockchain } from '../wrappers/MyBlockchain/MyBlockchain';
 
 describe('vAMM should be able to liquidate underwater long position', () => {
@@ -21,7 +22,7 @@ describe('vAMM should be able to liquidate underwater long position', () => {
   let vamm: SandboxContract<Vamm>;
 
   let longer: SandboxContract<TreasuryContract>;
-  let longerPosition: SandboxContract<TreasuryContract>;
+  let longerPosition: SandboxContract<PositionWallet>;
   let lastLongerPosition: PositionData;
 
   let jettonWallet: SandboxContract<TreasuryContract>;
@@ -41,10 +42,6 @@ describe('vAMM should be able to liquidate underwater long position', () => {
     oracle = await blockchain.treasury('oracle');
     liquidator = await blockchain.treasury('liquidator');
 
-    longer = await blockchain.treasury('longer');
-    longerPosition = await blockchain.treasury('longerPosition');
-    lastLongerPosition = getInitPosition(longer.address);
-
     vamm = blockchain.openContract(
       Vamm.createFromConfig(
         initVammData({
@@ -55,6 +52,12 @@ describe('vAMM should be able to liquidate underwater long position', () => {
         }),
         await compile('Vamm')
       )
+    );
+
+    [longer, lastLongerPosition, longerPosition] = await bootstrapTrader(
+      blockchain,
+      vamm.address,
+      'longer'
     );
 
     const deployer = await blockchain.treasury('deployer');
@@ -74,7 +77,7 @@ describe('vAMM should be able to liquidate underwater long position', () => {
       oracleRedirectAddress: longerPosition.address,
       priceData: getOraclePrice(1.23),
     });
-    lastLongerPosition = getAndUnpackPosition(increaseResult.events);
+    lastLongerPosition = getUpdatePositionMessage(increaseResult.events);
   });
 
   it('Can partially liquidate long position', async function () {
@@ -87,8 +90,8 @@ describe('vAMM should be able to liquidate underwater long position', () => {
       oracleRedirectAddress: longerPosition.address,
     });
 
-    lastLongerPosition = getAndUnpackPosition(liquidateResult1.events, 2);
-    balanceOfLiq += getAndUnpackWithdrawMessage(liquidateResult1.events, 1).amount;
+    lastLongerPosition = getUpdatePositionMessage(liquidateResult1.events);
+    balanceOfLiq += getWithdrawMessage(liquidateResult1.events).amount;
 
     const liquidateResult2 = await vamm.sendLiquidateRaw(oracle.getSender(), {
       value: toNano('0.3'),
@@ -97,8 +100,8 @@ describe('vAMM should be able to liquidate underwater long position', () => {
       priceData: getOraclePrice(0.85),
       oracleRedirectAddress: longerPosition.address,
     });
-    lastLongerPosition = getAndUnpackPosition(liquidateResult2.events, 2);
-    balanceOfLiq += getAndUnpackWithdrawMessage(liquidateResult2.events, 1).amount;
+    lastLongerPosition = getUpdatePositionMessage(liquidateResult2.events);
+    balanceOfLiq += getWithdrawMessage(liquidateResult2.events).amount;
 
     const liquidateResult3 = await vamm.sendLiquidateRaw(oracle.getSender(), {
       value: toNano('0.3'),
@@ -107,8 +110,8 @@ describe('vAMM should be able to liquidate underwater long position', () => {
       priceData: getOraclePrice(0.85),
       oracleRedirectAddress: longerPosition.address,
     });
-    lastLongerPosition = getAndUnpackPosition(liquidateResult3.events, 2);
-    balanceOfLiq += getAndUnpackWithdrawMessage(liquidateResult3.events, 1).amount;
+    lastLongerPosition = getUpdatePositionMessage(liquidateResult3.events);
+    balanceOfLiq += getWithdrawMessage(liquidateResult3.events).amount;
 
     expect(toStablecoinFloat(balanceOfLiq)).toBeCloseTo(7.25, 0.1);
   });

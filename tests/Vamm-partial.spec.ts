@@ -5,15 +5,16 @@ import { toNano } from 'ton-core';
 
 import { Direction, Vamm } from '../wrappers/Vamm';
 import { initVammData } from '../wrappers/Vamm/Vamm.data';
-import { PositionData } from '../wrappers/PositionWallet';
+import { PositionData, PositionWallet } from '../wrappers/PositionWallet';
 import {
   BigMath,
-  getAndUnpackPosition,
-  getAndUnpackWithdrawMessage,
+  getUpdatePositionMessage,
+  getWithdrawMessage,
   getInitPosition,
   getOraclePrice,
   toStablecoin,
   toStablecoinFloat,
+  bootstrapTrader,
 } from '../utils';
 import { MyBlockchain } from '../wrappers/MyBlockchain/MyBlockchain';
 
@@ -22,27 +23,20 @@ describe('vAMM should be able to partially close position', () => {
   let oracle: SandboxContract<TreasuryContract>;
   let jettonWallet: SandboxContract<TreasuryContract>;
   let vamm: SandboxContract<Vamm>;
+
   let longer: SandboxContract<TreasuryContract>;
-  let longerPosition: SandboxContract<TreasuryContract>;
+  let longerPosition: SandboxContract<PositionWallet>;
   let lastLongerPosition: PositionData;
+
   let shorter: SandboxContract<TreasuryContract>;
-  let shorterPosition: SandboxContract<TreasuryContract>;
+  let shorterPosition: SandboxContract<PositionWallet>;
   let lastShorterPosition: PositionData;
+
   let liquidator: SandboxContract<TreasuryContract>;
 
   beforeAll(async () => {
     blockchain = await MyBlockchain.create();
     blockchain.verbosity.debugLogs = false;
-
-    longer = await blockchain.treasury('longer');
-    longerPosition = await blockchain.treasury('longerPosition');
-    lastLongerPosition = getInitPosition(longer.address);
-
-    shorter = await blockchain.treasury('shorter');
-    shorterPosition = await blockchain.treasury('shorterPosition');
-    lastShorterPosition = getInitPosition(shorter.address);
-
-    liquidator = await blockchain.treasury('liquidator');
 
     oracle = await blockchain.treasury('oracle');
     jettonWallet = await blockchain.treasury('jettonWallet');
@@ -57,6 +51,20 @@ describe('vAMM should be able to partially close position', () => {
         await compile('Vamm')
       )
     );
+
+    [longer, lastLongerPosition, longerPosition] = await bootstrapTrader(
+      blockchain,
+      vamm.address,
+      'longer'
+    );
+
+    [shorter, lastShorterPosition, shorterPosition] = await bootstrapTrader(
+      blockchain,
+      vamm.address,
+      'shorter'
+    );
+
+    liquidator = await blockchain.treasury('liquidator');
 
     await vamm.sendDeploy(oracle.getSender(), toNano('0.5'), jettonWallet.address);
   });
@@ -83,7 +91,7 @@ describe('vAMM should be able to partially close position', () => {
       oracleRedirectAddress: longerPosition.address,
     });
 
-    const newPosition = getAndUnpackPosition(increaseResult.events);
+    const newPosition = getUpdatePositionMessage(increaseResult.events);
     lastLongerPosition = newPosition;
 
     await vamm.sendSetOraclePrice(oracle.getSender(), {
@@ -101,10 +109,10 @@ describe('vAMM should be able to partially close position', () => {
         priceData: getOraclePrice(65),
         oracleRedirectAddress: longerPosition.address,
       });
-      const newPosition = getAndUnpackPosition(closeResult.events, 2);
+      const newPosition = getUpdatePositionMessage(closeResult.events);
       lastLongerPosition = newPosition;
 
-      const withdrawMsg = getAndUnpackWithdrawMessage(closeResult.events, 1);
+      const withdrawMsg = getWithdrawMessage(closeResult.events);
       expect(toStablecoinFloat(withdrawMsg.amount)).toBeCloseTo(1481.8, 0.1); // Received: 1485.873766
     }
 
@@ -118,7 +126,7 @@ describe('vAMM should be able to partially close position', () => {
 
     const { ammState } = await vamm.getAmmData();
 
-    const closePosition = getAndUnpackPosition(closeResult.events, 2);
+    const closePosition = getUpdatePositionMessage(closeResult.events);
     lastLongerPosition = closePosition;
 
     expect(toStablecoinFloat(ammState.openInterestLong)).toBeCloseTo(0, 0.01);
@@ -140,7 +148,7 @@ describe('vAMM should be able to partially close position', () => {
       oracleRedirectAddress: longerPosition.address,
     });
 
-    const newPosition = getAndUnpackPosition(increaseResult.events);
+    const newPosition = getUpdatePositionMessage(increaseResult.events);
     lastLongerPosition = newPosition;
 
     await vamm.sendSetOraclePrice(oracle.getSender(), {
@@ -157,10 +165,10 @@ describe('vAMM should be able to partially close position', () => {
         priceData: getOraclePrice(45),
         oracleRedirectAddress: longerPosition.address,
       });
-      const newPosition = getAndUnpackPosition(closeResult.events, 2);
+      const newPosition = getUpdatePositionMessage(closeResult.events);
       lastLongerPosition = newPosition;
 
-      const withdrawMsg = getAndUnpackWithdrawMessage(closeResult.events, 1);
+      const withdrawMsg = getWithdrawMessage(closeResult.events);
       expect(toStablecoinFloat(withdrawMsg.amount)).toBeCloseTo(434.2, 0.1); // Received: 1485.873766
     }
 
@@ -172,7 +180,7 @@ describe('vAMM should be able to partially close position', () => {
       oracleRedirectAddress: longerPosition.address,
     });
 
-    const closePosition = getAndUnpackPosition(closeResult.events, 2);
+    const closePosition = getUpdatePositionMessage(closeResult.events);
     lastLongerPosition = closePosition;
 
     const { ammState } = await vamm.getAmmData();
@@ -195,7 +203,7 @@ describe('vAMM should be able to partially close position', () => {
       oracleRedirectAddress: shorterPosition.address,
     });
 
-    const newPosition = getAndUnpackPosition(increaseResult.events);
+    const newPosition = getUpdatePositionMessage(increaseResult.events);
     lastShorterPosition = newPosition;
 
     await vamm.sendSetOraclePrice(oracle.getSender(), {
@@ -213,10 +221,10 @@ describe('vAMM should be able to partially close position', () => {
         priceData: getOraclePrice(60),
         oracleRedirectAddress: shorterPosition.address,
       });
-      const newPosition = getAndUnpackPosition(closeResult.events, 2);
+      const newPosition = getUpdatePositionMessage(closeResult.events);
       lastShorterPosition = newPosition;
 
-      const withdrawMsg = getAndUnpackWithdrawMessage(closeResult.events, 1);
+      const withdrawMsg = getWithdrawMessage(closeResult.events);
       expect(toStablecoinFloat(withdrawMsg.amount)).toBeCloseTo(720.75, 0.1); // Received: 1485.873766
     }
 
@@ -230,8 +238,7 @@ describe('vAMM should be able to partially close position', () => {
 
     const { ammState } = await vamm.getAmmData();
 
-    const closePosition = getAndUnpackPosition(closeResult.events, 2);
-    lastShorterPosition = closePosition;
+    lastShorterPosition = getUpdatePositionMessage(closeResult.events);
 
     expect(toStablecoinFloat(ammState.openInterestLong)).toBeCloseTo(0, 0.01);
     expect(toStablecoinFloat(ammState.openInterestShort)).toBeCloseTo(0, 0.01);
@@ -252,7 +259,7 @@ describe('vAMM should be able to partially close position', () => {
       oracleRedirectAddress: longerPosition.address,
     });
 
-    const newPosition = getAndUnpackPosition(increaseResult.events);
+    const newPosition = getUpdatePositionMessage(increaseResult.events);
     lastLongerPosition = newPosition;
 
     {
@@ -264,10 +271,9 @@ describe('vAMM should be able to partially close position', () => {
         priceData: getOraclePrice(50),
         oracleRedirectAddress: longerPosition.address,
       });
-      const newPosition = getAndUnpackPosition(closeResult.events, 2);
-      lastLongerPosition = newPosition;
+      lastLongerPosition = getUpdatePositionMessage(closeResult.events);
 
-      const withdrawMsg = getAndUnpackWithdrawMessage(closeResult.events, 1);
+      const withdrawMsg = getWithdrawMessage(closeResult.events);
       console.log(`1 Got ${toStablecoinFloat(withdrawMsg.amount)}`);
     }
 
@@ -284,8 +290,7 @@ describe('vAMM should be able to partially close position', () => {
       priceData: getOraclePrice(58),
       oracleRedirectAddress: longerPosition.address,
     });
-    const _newPosition = getAndUnpackPosition(closeResult.events, 2);
-    lastLongerPosition = _newPosition;
+    lastLongerPosition = getUpdatePositionMessage(closeResult.events);
 
     const { ammState } = await vamm.getAmmData();
     expect(toStablecoinFloat(ammState.openInterestLong)).toBeCloseTo(0, 0.01);
@@ -307,7 +312,7 @@ describe('vAMM should be able to partially close position', () => {
       oracleRedirectAddress: shorterPosition.address,
     });
 
-    const newPosition = getAndUnpackPosition(increaseResult.events);
+    const newPosition = getUpdatePositionMessage(increaseResult.events);
     lastShorterPosition = newPosition;
 
     {
@@ -319,10 +324,9 @@ describe('vAMM should be able to partially close position', () => {
         priceData: getOraclePrice(58),
         oracleRedirectAddress: shorterPosition.address,
       });
-      const newPosition = getAndUnpackPosition(closeResult.events, 2);
-      lastShorterPosition = newPosition;
+      lastShorterPosition = getUpdatePositionMessage(closeResult.events);
 
-      const withdrawMsg = getAndUnpackWithdrawMessage(closeResult.events, 1);
+      const withdrawMsg = getWithdrawMessage(closeResult.events);
       console.log(`1 Got ${toStablecoinFloat(withdrawMsg.amount)}`);
     }
 
@@ -333,8 +337,7 @@ describe('vAMM should be able to partially close position', () => {
       priceData: getOraclePrice(58),
       oracleRedirectAddress: shorterPosition.address,
     });
-    const _newPosition = getAndUnpackPosition(closeResult.events, 2);
-    lastShorterPosition = _newPosition;
+    lastShorterPosition = getUpdatePositionMessage(closeResult.events);
 
     const { ammState } = await vamm.getAmmData();
     expect(toStablecoinFloat(ammState.openInterestLong)).toBeCloseTo(0, 0.01);
@@ -355,7 +358,7 @@ describe('vAMM should be able to partially close position', () => {
       oracleRedirectAddress: longerPosition.address,
     });
 
-    const newPosition1 = getAndUnpackPosition(increaseResult.events);
+    const newPosition1 = getUpdatePositionMessage(increaseResult.events);
     lastLongerPosition = newPosition1;
 
     blockchain.now += 1;
@@ -365,9 +368,8 @@ describe('vAMM should be able to partially close position', () => {
       priceData: getOraclePrice(63),
       oracleRedirectAddress: longerPosition.address,
     });
-    console.log(closeResult.events);
-    lastLongerPosition = getAndUnpackPosition(closeResult.events, 2);
-    const withdrawMsg = getAndUnpackWithdrawMessage(closeResult.events, 1);
+    lastLongerPosition = getUpdatePositionMessage(closeResult.events);
+    const withdrawMsg = getWithdrawMessage(closeResult.events);
     const ref = withdrawMsg.amount;
 
     const increaseResult2 = await vamm.sendIncreasePosition(oracle.getSender(), {
@@ -383,7 +385,7 @@ describe('vAMM should be able to partially close position', () => {
       oracleRedirectAddress: longerPosition.address,
     });
 
-    lastLongerPosition = getAndUnpackPosition(increaseResult2.events);
+    lastLongerPosition = getUpdatePositionMessage(increaseResult2.events);
 
     let sum = 0n;
     let part = lastLongerPosition.size / 9n;
@@ -398,9 +400,8 @@ describe('vAMM should be able to partially close position', () => {
         priceData: getOraclePrice(63),
         oracleRedirectAddress: longerPosition.address,
       });
-      console.log(closeResult.events);
-      lastLongerPosition = getAndUnpackPosition(closeResult.events, 2);
-      const withdrawMsg = getAndUnpackWithdrawMessage(closeResult.events, 1);
+      lastLongerPosition = getUpdatePositionMessage(closeResult.events);
+      const withdrawMsg = getWithdrawMessage(closeResult.events);
       sum += withdrawMsg.amount;
 
       console.log(`+++ Closed part of position with ${toStablecoinFloat(withdrawMsg.amount)}`);
@@ -427,7 +428,7 @@ describe('vAMM should be able to partially close position', () => {
       oracleRedirectAddress: longerPosition.address,
     });
 
-    const newPosition1 = getAndUnpackPosition(increaseResult.events);
+    const newPosition1 = getUpdatePositionMessage(increaseResult.events);
     lastLongerPosition = newPosition1;
 
     blockchain.now += 1;
@@ -437,9 +438,8 @@ describe('vAMM should be able to partially close position', () => {
       priceData: getOraclePrice(50),
       oracleRedirectAddress: longerPosition.address,
     });
-    const newPosition2 = getAndUnpackPosition(closeResult.events, 2);
-    lastLongerPosition = newPosition2;
-    const withdrawMsg = getAndUnpackWithdrawMessage(closeResult.events, 1);
+    lastLongerPosition = getUpdatePositionMessage(closeResult.events);
+    const withdrawMsg = getWithdrawMessage(closeResult.events);
     const ref = withdrawMsg.amount;
 
     const increaseResult2 = await vamm.sendIncreasePosition(oracle.getSender(), {
@@ -455,7 +455,7 @@ describe('vAMM should be able to partially close position', () => {
       oracleRedirectAddress: longerPosition.address,
     });
 
-    const newPosition3 = getAndUnpackPosition(increaseResult2.events);
+    const newPosition3 = getUpdatePositionMessage(increaseResult2.events);
     lastLongerPosition = newPosition3;
 
     let sum = 0n;
@@ -471,9 +471,8 @@ describe('vAMM should be able to partially close position', () => {
         priceData: getOraclePrice(50),
         oracleRedirectAddress: longerPosition.address,
       });
-      const newPosition = getAndUnpackPosition(closeResult.events, 2);
-      lastLongerPosition = newPosition;
-      const withdrawMsg = getAndUnpackWithdrawMessage(closeResult.events, 1);
+      lastLongerPosition = getUpdatePositionMessage(closeResult.events);
+      const withdrawMsg = getWithdrawMessage(closeResult.events);
       sum += withdrawMsg.amount;
 
       console.log(`+++ Closed part of position with ${toStablecoinFloat(withdrawMsg.amount)}`);
@@ -500,7 +499,7 @@ describe('vAMM should be able to partially close position', () => {
       oracleRedirectAddress: shorterPosition.address,
     });
 
-    const newPosition1 = getAndUnpackPosition(increaseResult.events);
+    const newPosition1 = getUpdatePositionMessage(increaseResult.events);
     lastShorterPosition = newPosition1;
 
     blockchain.now += 1;
@@ -510,9 +509,8 @@ describe('vAMM should be able to partially close position', () => {
       priceData: getOraclePrice(50),
       oracleRedirectAddress: shorterPosition.address,
     });
-    const newPosition2 = getAndUnpackPosition(closeResult.events, 2);
-    lastShorterPosition = newPosition2;
-    const withdrawMsg = getAndUnpackWithdrawMessage(closeResult.events, 1);
+    lastShorterPosition = getUpdatePositionMessage(closeResult.events);
+    const withdrawMsg = getWithdrawMessage(closeResult.events);
     const ref = withdrawMsg.amount;
 
     const increaseResult2 = await vamm.sendIncreasePosition(oracle.getSender(), {
@@ -528,8 +526,7 @@ describe('vAMM should be able to partially close position', () => {
       oracleRedirectAddress: shorterPosition.address,
     });
 
-    const newPosition3 = getAndUnpackPosition(increaseResult2.events);
-    lastShorterPosition = newPosition3;
+    lastShorterPosition = getUpdatePositionMessage(increaseResult2.events);
 
     let sum = 0n;
     let part = lastShorterPosition.size / 9n;
@@ -544,9 +541,8 @@ describe('vAMM should be able to partially close position', () => {
         priceData: getOraclePrice(50),
         oracleRedirectAddress: shorterPosition.address,
       });
-      const newPosition = getAndUnpackPosition(closeResult.events, 2);
-      lastShorterPosition = newPosition;
-      const withdrawMsg = getAndUnpackWithdrawMessage(closeResult.events, 1);
+      lastShorterPosition = getUpdatePositionMessage(closeResult.events);
+      const withdrawMsg = getWithdrawMessage(closeResult.events);
       sum += withdrawMsg.amount;
 
       console.log(`+++ Closed part of position with ${toStablecoinFloat(withdrawMsg.amount)}`);
@@ -573,7 +569,7 @@ describe('vAMM should be able to partially close position', () => {
       oracleRedirectAddress: shorterPosition.address,
     });
 
-    const newPosition1 = getAndUnpackPosition(increaseResult.events);
+    const newPosition1 = getUpdatePositionMessage(increaseResult.events);
     lastShorterPosition = newPosition1;
 
     blockchain.now += 1;
@@ -583,9 +579,8 @@ describe('vAMM should be able to partially close position', () => {
       priceData: getOraclePrice(63),
       oracleRedirectAddress: shorterPosition.address,
     });
-    const newPosition2 = getAndUnpackPosition(closeResult.events, 2);
-    lastShorterPosition = newPosition2;
-    const withdrawMsg = getAndUnpackWithdrawMessage(closeResult.events, 1);
+    lastShorterPosition = getUpdatePositionMessage(closeResult.events);
+    const withdrawMsg = getWithdrawMessage(closeResult.events);
     const ref = withdrawMsg.amount;
 
     const increaseResult2 = await vamm.sendIncreasePosition(oracle.getSender(), {
@@ -601,7 +596,7 @@ describe('vAMM should be able to partially close position', () => {
       oracleRedirectAddress: shorterPosition.address,
     });
 
-    const newPosition3 = getAndUnpackPosition(increaseResult2.events);
+    const newPosition3 = getUpdatePositionMessage(increaseResult2.events);
     lastShorterPosition = newPosition3;
 
     let sum = 0n;
@@ -609,7 +604,6 @@ describe('vAMM should be able to partially close position', () => {
 
     for (let i = 0; i < 9; i++) {
       let actualPart = BigMath.min(BigMath.abs(lastShorterPosition.size), BigMath.abs(part));
-      console.log('I: ', i, lastShorterPosition, actualPart);
       blockchain.now += 1;
       const closeResult = await vamm.sendClosePositionRaw(oracle.getSender(), {
         value: toNano('0.2'),
@@ -618,9 +612,8 @@ describe('vAMM should be able to partially close position', () => {
         priceData: getOraclePrice(63),
         oracleRedirectAddress: shorterPosition.address,
       });
-      const newPosition = getAndUnpackPosition(closeResult.events, 2);
-      lastShorterPosition = newPosition;
-      const withdrawMsg = getAndUnpackWithdrawMessage(closeResult.events, 1);
+      lastShorterPosition = getUpdatePositionMessage(closeResult.events);
+      const withdrawMsg = getWithdrawMessage(closeResult.events);
       sum += withdrawMsg.amount;
 
       console.log(`+++ Closed part of position with ${toStablecoinFloat(withdrawMsg.amount)}`);
@@ -648,7 +641,7 @@ describe('vAMM should be able to partially close position', () => {
       priceData: getOraclePrice(55),
       oracleRedirectAddress: shorterPosition.address,
     });
-    lastShorterPosition = getAndUnpackPosition(increaseResult.events);
+    lastShorterPosition = getUpdatePositionMessage(increaseResult.events);
 
     // blockchain.setVerbosityForAddress(vamm.address, { vmLogs: 'vm_logs', debugLogs: true });
     blockchain.now += 1;
@@ -659,7 +652,7 @@ describe('vAMM should be able to partially close position', () => {
       priceData: getOraclePrice(69),
       oracleRedirectAddress: shorterPosition.address,
     });
-    lastShorterPosition = getAndUnpackPosition(liquidateResult1.events);
+    lastShorterPosition = getUpdatePositionMessage(liquidateResult1.events);
 
     blockchain.now += 1;
     const liquidateResult2 = await vamm.sendLiquidateRaw(oracle.getSender(), {
@@ -669,7 +662,7 @@ describe('vAMM should be able to partially close position', () => {
       priceData: getOraclePrice(69),
       oracleRedirectAddress: shorterPosition.address,
     });
-    lastShorterPosition = getAndUnpackPosition(liquidateResult2.events);
+    lastShorterPosition = getUpdatePositionMessage(liquidateResult2.events);
 
     blockchain.now += 1;
     const closeResult = await vamm.sendClosePositionRaw(oracle.getSender(), {
@@ -678,7 +671,7 @@ describe('vAMM should be able to partially close position', () => {
       priceData: getOraclePrice(69),
       oracleRedirectAddress: shorterPosition.address,
     });
-    lastShorterPosition = getAndUnpackPosition(closeResult.events);
+    lastShorterPosition = getUpdatePositionMessage(closeResult.events);
 
     const { ammState } = await vamm.getAmmData();
     expect(toStablecoinFloat(ammState.openInterestLong)).toBeCloseTo(0, 0.01);
@@ -698,7 +691,7 @@ describe('vAMM should be able to partially close position', () => {
       priceData: getOraclePrice(55),
       oracleRedirectAddress: longerPosition.address,
     });
-    lastLongerPosition = getAndUnpackPosition(increaseResult.events);
+    lastLongerPosition = getUpdatePositionMessage(increaseResult.events);
 
     // blockchain.setVerbosityForAddress(vamm.address, { vmLogs: 'vm_logs', debugLogs: true });
     const liquidateResult1 = await vamm.sendLiquidateRaw(oracle.getSender(), {
@@ -708,7 +701,7 @@ describe('vAMM should be able to partially close position', () => {
       priceData: getOraclePrice(38),
       oracleRedirectAddress: longerPosition.address,
     });
-    lastLongerPosition = getAndUnpackPosition(liquidateResult1.events);
+    lastLongerPosition = getUpdatePositionMessage(liquidateResult1.events);
 
     const liquidateResult2 = await vamm.sendLiquidateRaw(oracle.getSender(), {
       value: toNano('0.3'),
@@ -717,7 +710,7 @@ describe('vAMM should be able to partially close position', () => {
       priceData: getOraclePrice(38),
       oracleRedirectAddress: longerPosition.address,
     });
-    lastLongerPosition = getAndUnpackPosition(liquidateResult2.events);
+    lastLongerPosition = getUpdatePositionMessage(liquidateResult2.events);
 
     blockchain.now += 1;
     const closeResult = await vamm.sendClosePositionRaw(oracle.getSender(), {
@@ -726,7 +719,7 @@ describe('vAMM should be able to partially close position', () => {
       priceData: getOraclePrice(69),
       oracleRedirectAddress: longerPosition.address,
     });
-    lastLongerPosition = getAndUnpackPosition(closeResult.events, 2);
+    lastLongerPosition = getUpdatePositionMessage(closeResult.events);
 
     const { ammState } = await vamm.getAmmData();
     expect(toStablecoinFloat(ammState.openInterestLong)).toBeCloseTo(0, 0.01);
@@ -747,7 +740,7 @@ describe('vAMM should be able to partially close position', () => {
       oracleRedirectAddress: shorterPosition.address,
     });
 
-    const newPosition1 = getAndUnpackPosition(increaseResult.events);
+    const newPosition1 = getUpdatePositionMessage(increaseResult.events);
     lastShorterPosition = newPosition1;
 
     blockchain.now += 1;
@@ -757,9 +750,8 @@ describe('vAMM should be able to partially close position', () => {
       priceData: getOraclePrice(63),
       oracleRedirectAddress: shorterPosition.address,
     });
-    const newPosition2 = getAndUnpackPosition(closeResult.events, 2);
-    lastShorterPosition = newPosition2;
-    const withdrawMsg = getAndUnpackWithdrawMessage(closeResult.events, 1);
+    lastShorterPosition = getUpdatePositionMessage(closeResult.events);
+    const withdrawMsg = getWithdrawMessage(closeResult.events);
     const ref = withdrawMsg.amount;
 
     const increaseResult2 = await vamm.sendIncreasePosition(oracle.getSender(), {
@@ -775,7 +767,7 @@ describe('vAMM should be able to partially close position', () => {
       oracleRedirectAddress: shorterPosition.address,
     });
 
-    const newPosition3 = getAndUnpackPosition(increaseResult2.events);
+    const newPosition3 = getUpdatePositionMessage(increaseResult2.events);
     lastShorterPosition = newPosition3;
 
     let sum = 0n;
@@ -796,11 +788,11 @@ describe('vAMM should be able to partially close position', () => {
         addToMargin: true,
       });
       if (i == 8) {
-        lastShorterPosition = getAndUnpackPosition(closeResult.events, i == 8 ? 2 : -1);
-        const withdrawMsg = getAndUnpackWithdrawMessage(closeResult.events, 1);
+        lastShorterPosition = getUpdatePositionMessage(closeResult.events);
+        const withdrawMsg = getWithdrawMessage(closeResult.events);
         sum += withdrawMsg.amount;
       } else {
-        lastShorterPosition = getAndUnpackPosition(closeResult.events);
+        lastShorterPosition = getUpdatePositionMessage(closeResult.events);
       }
 
       console.log(`+++ Closed part of position with ${toStablecoinFloat(withdrawMsg.amount)}`);

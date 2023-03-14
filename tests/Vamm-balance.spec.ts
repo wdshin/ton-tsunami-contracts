@@ -5,35 +5,25 @@ import { toNano } from 'ton-core';
 
 import { Direction, IncreasePositionBody, Vamm } from '../wrappers/Vamm';
 import { initVammData } from '../wrappers/Vamm/Vamm.data';
-import { PositionData } from '../wrappers/PositionWallet';
-import { getInitPosition, getOraclePrice, toStablecoin } from '../utils';
-import { getAndUnpackPosition } from '../utils';
+import { PositionData, PositionWallet } from '../wrappers/PositionWallet';
+import { bootstrapTrader, getOraclePrice, toStablecoin } from '../utils';
+import { getUpdatePositionMessage } from '../utils';
 import { MyBlockchain } from '../wrappers/MyBlockchain/MyBlockchain';
 
 describe('vAMM should work with positive funding', () => {
   let blockchain: MyBlockchain;
   let vamm: SandboxContract<Vamm>;
   let longer: SandboxContract<TreasuryContract>;
-  let longerPosition: SandboxContract<TreasuryContract>;
+  let longerPosition: SandboxContract<PositionWallet>;
   let lastLongerPosition: PositionData;
   let jettonWallet: SandboxContract<TreasuryContract>;
   let oracle: SandboxContract<TreasuryContract>;
 
   beforeAll(async () => {
     blockchain = await MyBlockchain.create();
-    blockchain.verbosity = {
-      print: true,
-      vmLogs: 'vm_logs',
-      blockchainLogs: true,
-      debugLogs: true,
-    };
 
     jettonWallet = await blockchain.treasury('jettonWallet');
     oracle = await blockchain.treasury('oracle');
-
-    longer = await blockchain.treasury('longer');
-    longerPosition = await blockchain.treasury('longerPosition');
-    lastLongerPosition = getInitPosition(longer.address);
 
     vamm = blockchain.openContract(
       Vamm.createFromConfig(
@@ -45,6 +35,12 @@ describe('vAMM should work with positive funding', () => {
         }),
         await compile('Vamm')
       )
+    );
+
+    [longer, lastLongerPosition, longerPosition] = await bootstrapTrader(
+      blockchain,
+      vamm.address,
+      'longer'
     );
 
     const deployer = await blockchain.treasury('deployer');
@@ -70,6 +66,7 @@ describe('vAMM should work with positive funding', () => {
       from: vamm.address,
       to: longerPosition.address,
     });
+    const newPosition = getUpdatePositionMessage(increaseResult.events);
 
     {
       const ammData = await vamm.getAmmData();
@@ -77,8 +74,6 @@ describe('vAMM should work with positive funding', () => {
     }
 
     blockchain.now += 1;
-    const newPosition = getAndUnpackPosition(increaseResult.events);
-
     await vamm.sendClosePositionRaw(oracle.getSender(), {
       value: toNano('0.2'),
       oldPosition: newPosition,
