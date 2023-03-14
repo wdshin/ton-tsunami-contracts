@@ -39,36 +39,14 @@
   slice position_s = position_ref.begin_parse();
   slice payload_s = payload_ref.begin_parse();
 
-  ;; TODO: msg layout
   int raw_amount = in_msg_body~load_coins();
 
   var (int direction, int leverage, int min_base_asset_amount) = (payload_s~load_uint(1), payload_s~load_uint(32), payload_s~load_coins());
-  ;; int direction = payload_s~load_uint(1);
-  ;; int leverage = payload_s~load_uint(32);
-  ;; int min_base_asset_amount = payload_s~load_coins();
-
-  ;; Check...
-  ;; TODO: check asset on router
-
-  ~dump(leverage);
-  ~dump(direction);
-  ~dump(min_base_asset_amount);
-  ~dump(500);
 
   if (~ requireMoreMarginRatio(divd(DECIMAL_UNIT, leverage), db::initMarginRatio, true)) {
-    int withdraw_ton_amount = 120000000; ;; TODO: calculate gas fee from config
+    int unlock_ton_amount = msg_value - withdraw_ton_value;
 
-    int unlock_ton_amount = msg_value - withdraw_ton_amount;
-
-
-    ~dump(leverage);
-    ~dump(direction);
-    ~dump(min_base_asset_amount);
-    ~dump(unlock_ton_amount);
-    ~dump(401);
-
-    request_withdraw(query_id, raw_amount, position_s~load_msg_addr(), withdraw_ton_amount, mode::normal + mode::ignore_errors);
-    ;; withdraw(position_s~load_msg_addr(), raw_amount, withdraw_ton_amount, mode::normal);
+    request_withdraw(query_id, raw_amount, position_s~load_msg_addr(), withdraw_ton_value, mode::normal + mode::ignore_errors);
     unlock_position(sender_addr, unlock_ton_amount, mode::normal + mode::ignore_errors);
     return ();
   }
@@ -92,18 +70,10 @@
 
 
   if (~ (isNewPosition | expandExisting)) {
-    ~dump(402);
     ;; TODO: cant throw, revert amount back and unlock position
-    ;; int storage_ton = 100000000; ;; 0.1
-    ;; raw_reserve(storage_ton, 0);
+    int unlock_ton_amount = msg_value - withdraw_ton_value;
 
-    int withdraw_ton_amount = 120000000; ;; TODO: 
-
-    int unlock_ton_amount = msg_value - withdraw_ton_amount;
-
-    request_withdraw(query_id, raw_amount, trader_addr, withdraw_ton_amount,mode::normal);
-
-    ;; withdraw(trader_addr, raw_amount, withdraw_ton_amount, mode::normal);
+    request_withdraw(query_id, raw_amount, trader_addr, withdraw_ton_value,mode::normal);
     unlock_position(sender_addr, unlock_ton_amount, mode::normal);
     return ();
   }
@@ -188,22 +158,12 @@
 
 () handle::close_position(slice in_msg_body, slice sender_addr, int query_id, int my_balance, int msg_value) impure inline {
 
-  var (cell payload_ref, cell position_ref, cell new_price_ref) = (in_msg_body~load_ref(), in_msg_body~load_ref(), in_msg_body.preload_ref());
+  var (int _size, int _minQuoteAssetAmount, int _addToMargin, cell position_ref, cell new_price_ref) = (in_msg_body~load_uint(128), in_msg_body~load_coins(), in_msg_body~load_int(1), in_msg_body~load_ref(), in_msg_body.preload_ref());
 
   slice oracle_s = new_price_ref.begin_parse();
   int new_price = oracle_s~load_coins();
   syncTerminalPriceToOracle(new_price);
-  ~dump(70000);
-  ~dump(new_price);
-  ~dump(db::quoteAssetWeight);
-
-  slice position_s = position_ref.begin_parse();
-  slice payload_s = payload_ref.begin_parse();
-
-  ;; TODO: msg layout
-
-  var (int _size, int _minQuoteAssetAmount, int _addToMargin) = (payload_s~load_int(128), payload_s~load_coins(), payload_s~load_int(1));
-
+  
   slice position_s = position_ref.begin_parse();
 
   var (slice trader_addr,
@@ -214,14 +174,7 @@
     int oldPositionFee,
     int oldPositionTimestamp) = unpack_position_data(position_s);
 
-
-  ~dump(888);
-
   ifnot ((_size <= abs(oldPositionSize)) & (_size > 0)) {
-    ~dump(889);
-    ~dump(_size);
-    ~dump(abs(oldPositionSize));
-    ~dump((_size <= abs(oldPositionSize)));
     unlock_position(sender_addr, 0, mode::carry_remaining_gas);
     return ();
   }
@@ -258,10 +211,6 @@
   );
 
   if ((positionBadDebt > 0) | (oldPositionTimestamp >= now())) {
-    ;; TODO: throw exception
-    ~dump(positionBadDebt);
-    ~dump(oldPositionTimestamp);
-    ~dump(406);
     unlock_position(sender_addr, 0, mode::carry_remaining_gas);
     return ();
   }
@@ -269,43 +218,20 @@
   int withdrawAmount = marginToTrader + realizedFee;
   int ammBalance = db::balance - withdrawAmount;
       
-  ;;   strict unstake = invoke(
-  ;;     vaultAddress(),
-  ;;     "withdrawLocked",
-  ;;     [withdrawAmount],
-  ;;     []
-  ;;   )
-
-  ;; var (int feeToStakers, int feeToVault) = distributeFee(realizedFee);
-
-  ;;       strict depositVault = invoke(
-  ;;     vaultAddress(),
-  ;;     "addFree",
-  ;;     [],
-  ;;     [AttachedPayment(quoteAsset(), feeToVault)]
-  ;;   )
-
-  ~dump(888);
-  ~dump(marginToTrader);
-
-  ;; raw_reserve(mint_storage_tons, 0);
-
-  int mint_storage_tons = 50000000;
-  int value_to_sent = my_balance - mint_storage_tons;
+  int mint_storage_tons = 50000000; ;; TODO: remov end use config later
+  int value_to_sent = msg_value - mint_storage_tons;
+  ~dump(696969);
+  ~dump(value_to_sent);
+  ~dump(my_balance);
 
   if (marginToTrader > 0) {
-    ~dump(999);
-    int withdraw_ton = 110000000;
-    value_to_sent -= withdraw_ton;
+    value_to_sent -= withdraw_ton_value;
     ;; TODO: calculate value and mode
-    ;; 0.1ton
-    request_withdraw(query_id, marginToTrader, trader_addr, withdraw_ton, mode::normal);
-    ;; withdraw(trader_addr, marginToTrader, withdraw_ton, mode::normal);
+    request_withdraw(query_id, marginToTrader, trader_addr, withdraw_ton_value, mode::normal);
   }
 
-  ;; TODO: calculate value and mode
+  ~dump(value_to_sent);
 
-  ;; TODO: need this? 
 
   db::quoteAssetReserve = quoteAssetReserveAfter;
   db::baseAssetReserve = baseAssetReserveAfter;
@@ -315,9 +241,6 @@
   db::openInterestShort = totalShortOpenInterestAfter;
 
   db::balance = max(ammBalance, 0);
-
-  ~dump(888999);
-  ~dump(db::fee);
 
   cell new_position_ref = pack_position_data(newPositionSize != 0 ? (trader_addr, newPositionSize, newPositionMargin, newPositionOpenNotional, newPositionLstUpdCPF, get_position_fee(oldPositionFee), now()) : (trader_addr, 0, 0, 0, 0, 0, 0));
   update_position(new_position_ref, op::close_position, query_id, sender_addr, value_to_sent, mode::normal);
@@ -341,13 +264,9 @@
     ~dump(405);
     ;; TODO: cant throw, revert amount back 
     ;; throw("Invalid addMargin parameters")
-    int withdraw_ton_amount = 120000000; ;; TODO: calc withdraw_ton_amount gas fees from config
+    int unlock_ton_amount = msg_value - withdraw_ton_value;
+    request_withdraw(query_id, _amount, position_s~load_msg_addr(), withdraw_ton_value, mode::normal);
 
-    int unlock_ton_amount = msg_value - withdraw_ton_amount;
-
-    request_withdraw(query_id, _amount, position_s~load_msg_addr(), withdraw_ton_amount, mode::normal);
-
-    ;; withdraw(position_s~load_msg_addr(), _amount, withdraw_ton_amount, mode::normal);
     unlock_position(sender_addr, unlock_ton_amount, mode::normal);
     return ();
   }
@@ -360,34 +279,12 @@
     int oldPositionFee,
     int oldPositionTimestamp) = unpack_position_data(position_s);
 
-  ;;     strict stake = invoke(
-  ;;   vaultAddress(),
-  ;;   "addLocked",
-  ;;   [],
-  ;;   [AttachedPayment(quoteAsset(), _amount)]
-  ;; )
+  ;; TODO: vault addLocked call here
 
   int rolloverFee = calcRolloverFee(oldPositionMargin, oldPositionTimestamp);
 
   if (rolloverFee > 0) {
-    ;; TODO: 
-    ;;         let (feeToStakers, feeToVault) = distributeFee(rolloverFee)
-
-    ;;   strict unstake = invoke(
-    ;;     vaultAddress(),
-    ;;     "withdrawLocked",
-    ;;     [feeToStakers],
-    ;;     []
-    ;;   )
-
-    ;;   strict lockBadDebt = invoke(
-    ;;     vaultAddress(),
-    ;;     "exchangeFreeAndLocked",
-    ;;     [-feeToVault], # Negative, because it is directed towards vault, not towards traders
-    ;;     []
-    ;;   )
-
-    ;;   transferFee(feeToStakers)
+    ;; TODO: vault withdrawLocked and exchangeFreeAndLocked calls here
   }
 
   db::balance += (_amount - rolloverFee);
@@ -401,7 +298,7 @@
   save_data();
 }
 
-() handle::remove_margin(slice in_msg_body, slice sender_addr, int query_id) impure inline {
+() handle::remove_margin(slice in_msg_body, slice sender_addr, int query_id, int msg_value) impure inline {
   var (int _amount, cell position_ref, cell new_price_ref) = (in_msg_body~load_coins(), in_msg_body~load_ref(), in_msg_body.preload_ref());
 
   slice oracle_s = new_price_ref.begin_parse();
@@ -411,7 +308,6 @@
   slice position_s = position_ref.begin_parse();
 
   if (_amount <= 0 | ~ requireOpenPosition(position_s)) {
-    ;; TODO: test throwing with unlocking position on bounce
     unlock_position(sender_addr, 0, mode::carry_remaining_gas);
     return ();
   }
@@ -434,37 +330,21 @@
   );
 
   if (badDebt != 0)  {
-    ;;   throw("Invalid removed margin amount")
+    unlock_position(sender_addr, 0, mode::carry_remaining_gas);
+    return ();
   }
   int marginRatio = calcMarginRatio(remainMargin, badDebt, oldPositionOpenNotional);
 
   if (~ requireMoreMarginRatio(marginRatio, db::initMarginRatio, true))  {
-    ;; throw("Too much margin removed: " + marginRatio.toString() + " < " + initMarginRatio().toString())
+    unlock_position(sender_addr, 0, mode::carry_remaining_gas);
+    return ();
   } 
 
-  ;;    strict doTransferFeeToStakers = if (rolloverFee > 0) then {
-  ;;   strict lockBadDebt = invoke(
-  ;;     vaultAddress(),
-  ;;     "exchangeFreeAndLocked",
-  ;;     [-feeToVault], # Negative, because it is directed towards vault, not towards traders
-  ;;     []
-  ;;   )
-  ;;   transferFee(feeToStakers)
-
-  ;; strict unstake = invoke(
-  ;;   vaultAddress(),
-  ;;   "withdrawLocked",
-  ;;   [_amount + feeToStakers],
-  ;;   []
-  ;; )
-
-  
-  request_withdraw(query_id, _amount, trader_addr, 10000000, mode::normal);
+  int update_ton_value = msg_value - withdraw_ton_value;
+  request_withdraw(query_id, _amount, trader_addr, withdraw_ton_value, mode::normal);
   cell new_position_ref = pack_position_data(trader_addr, oldPositionSize, remainMargin, oldPositionOpenNotional, latestCumulativePremiumFraction(oldPositionSize), get_position_fee(oldPositionFee), now());
   ;; TODO: calculate value and mode
-  update_position(new_position_ref, op::remove_margin, query_id, sender_addr, 0, mode::carry_remaining_gas);
-  ;; TODO: withdraw here 
-  ;; withdraw(i.caller, _amount)
+  update_position(new_position_ref, op::remove_margin, query_id, sender_addr, update_ton_value, mode::normal);
 
   db::balance -= (_amount + rolloverFee);
 
@@ -484,21 +364,9 @@
 
   var (int shortPremiumFraction, int longPremiumFraction, int premiumToVault) = getFunding(new_price);
 
-  ~dump(3333);
-  ~dump(shortPremiumFraction);
-  ~dump(longPremiumFraction);
-
-  ;;         strict doPayFundingToVault = if (premiumToVault > 0) then {
-  ;;   strict doPayFundingToVault = invoke(
-  ;;     vaultAddress(),
-  ;;     "exchangeFreeAndLocked",
-  ;;     [-premiumToVault], # Negative, because it is directed towards vault, not towards traders
-  ;;     []
-  ;;   )
-  ;;   []
-  ;; } else {
-  ;;   []
-  ;; }
+  if (premiumToVault > 0) {
+    ;; TODO: vault exchangeFreeAndLocked call here
+  }
 
   db::nextFundingBlockTimestamp += fundingPeriodRaw * SECONDS;
   db::latestLongCumulativePremiumFraction += longPremiumFraction;
@@ -507,9 +375,9 @@
   db::shortFundingRate = divd(shortPremiumFraction, new_price);
 
   var body = begin_cell()
-    .store_uint(op::update_amm, 32) ;; 0xe434967e
+    .store_uint(op::update_amm, 32)
     .store_uint(query_id, 64)
-    .store_uint(op::pay_funding, 32) ;; 0xb652c441
+    .store_uint(op::pay_funding, 32)
     .store_uint(db::nextFundingBlockTimestamp, 32)
     .store_coins(db::latestLongCumulativePremiumFraction)
     .store_coins(db::latestShortCumulativePremiumFraction);
@@ -536,12 +404,6 @@
     int oldPositionFee,
     int oldPositionTimestamp) = unpack_position_data(position_s);
 
-  ;; ~dump(first(parse_addr(trader_addr)));
-  ;; ~dump(oldPositionSize);
-  ;; ~dump(oldPositionMargin);
-  ;; ~dump(oldPositionOpenNotional);
-  ;; ~dump(oldPositionLastUpdatedCPF);
-
 
   if (oldPositionSize == 0) {
     ;; "Unable to liquidate"
@@ -552,11 +414,6 @@
   int spotMarginRatio = getMarginRatioByOption(oldPositionSize, oldPositionMargin, oldPositionOpenNotional, oldPositionLastUpdatedCPF, oldPositionTimestamp, PNL_OPTION_SPOT, new_price);
   int liquidationMarginRatio = isOverFluctuationLimit(new_price) ? max(spotMarginRatio, getMarginRatioByOption(oldPositionSize, oldPositionMargin, oldPositionOpenNotional, oldPositionLastUpdatedCPF, oldPositionTimestamp, PNL_OPTION_ORACLE, new_price)) : spotMarginRatio;
 
-  ;; !requireMoreMarginRatio(liquidationMarginRatio, maintenanceMarginRatio(), false)
-  ;; || !requireOpenPosition(_trader)
-  ;; || !initialized()
-  ;; || paused()
-  ;; || isMarketClosed()
   if (~ requireMoreMarginRatio(liquidationMarginRatio, db::maintenanceMarginRatio, false)) {
     ;; "Unable to liquidate"
     unlock_position(sender_addr, 0, mode::carry_remaining_gas);
@@ -572,17 +429,8 @@
   int liquidationRatio = 0;
   int liquidationSize = 0;
 
-  ~dump(1);
-
   if (isPartialLiquidation) {
     liquidationRatio = divd(abs(liquidationSize), positionSizeAbs);
-    ;;     int _positionSize,
-    ;; int _positionMargin,
-    ;; int _positionOpenNotional,
-    ;; int _positionLastUpdatedCPF,
-    ;; int _positionTimestamp,
-    ;; int _option,
-    ;; int oraclePrice
     liquidationSize = abs(getPartialLiquidationAmount(
         oldPositionSize,
         oldPositionMargin,
@@ -593,9 +441,6 @@
   } else {
     liquidationSize = positionSizeAbs;
   }
-
-  ~dump(2);
-
 
   var (
     int newPositionSize,
@@ -628,14 +473,10 @@
     new_price
   );
 
-  ~dump(3);
-
-
   int feeToLiquidator = liquidationPenalty / 2;
   int feeToVault = liquidationPenalty - feeToLiquidator;
 
   int ammBalance = db::balance - liquidationPenalty;
-  ;; int newAmmBalance = max(ammBalance, 0);
 
   db::quoteAssetReserve = quoteAssetReserveAfter;
   db::baseAssetReserve = baseAssetReserveAfter;
@@ -645,10 +486,9 @@
   db::openInterestShort = totalShortOpenInterestAfter;
   db::balance = max(ammBalance, 0);
 
-  int withdraw_ton_amount = 120000000; ;; TODO: calculate gas fee from config
-  int update_ton_amount = msg_value - withdraw_ton_amount;
+  int update_ton_amount = msg_value - withdraw_ton_value; ;; TODO: calculate gas fee from config
 
-  request_withdraw(query_id, feeToLiquidator, liquidator_addr, withdraw_ton_amount, mode::normal);
+  request_withdraw(query_id, feeToLiquidator, liquidator_addr, withdraw_ton_value, mode::normal);
 
   cell new_position_ref = pack_position_data(isPartialLiquidation ? (trader_addr, newPositionSize, newPositionMargin, newPositionOpenNotional, newPositionLstUpdCPF, get_position_fee(oldPositionFee), now()) : (trader_addr, 0, 0, 0, 0, 0, 0));
   update_position(new_position_ref, op::liquidate, query_id, sender_addr, update_ton_amount, mode::normal);
@@ -658,7 +498,6 @@
 () handle::oracle_response(slice in_msg_body, slice sender_addr, int my_balance, int msg_value) impure inline {
   load_data();
   throw_unless(error::not_an_oracle, equal_slices(sender_addr, db::oracle_addr));
-        
 
   var (slice prev_sender_addr, int op, int query_id) = (in_msg_body~load_msg_addr(), in_msg_body~load_uint(32), in_msg_body~load_uint(64));
 
@@ -678,7 +517,7 @@
   }
 
   if (op == op::remove_margin) {
-    handle::remove_margin(in_msg_body, prev_sender_addr, query_id);
+    handle::remove_margin(in_msg_body, prev_sender_addr, query_id, msg_value);
     return ();
   }
 
@@ -692,5 +531,5 @@
     return ();
   }
 
-  throw(0xffff);
+  throw(error::wrong_op);
 }

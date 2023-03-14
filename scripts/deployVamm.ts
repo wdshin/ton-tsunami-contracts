@@ -15,7 +15,7 @@ export async function run(provider: NetworkProvider) {
       price: 2.23,
       indexId: IndexIds.TON,
       opts: {
-        jettonWalletAddress: Address.parse('EQAAehIG5Lsju35hFo9ZuCdsmZf-pRtlpuTQHQC1YKY0CAl2'),
+        jettonWalletAddress: Address.parse('kQBaYzBs3DaCEFtaE8fwQat_74IPBaLRQOTgZgPTPOVUDsFb'),
         oracleAddress,
         // @ts-ignore
         extraData: {

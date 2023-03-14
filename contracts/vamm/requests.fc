@@ -32,11 +32,15 @@
     .store_slice(my_address()) ;; oracle redirect -> vamm address
     .store_uint(inner_op, 32)
     .store_uint(query_id, 64)
+    .store_slice(payload_s);
   ;; .store_slice(payload_s) TODO: send payload ref more in a more elegant way then below:
-    .store_ref(begin_cell().store_slice(payload_s).end_cell())
-    .end_cell(); ;; TODO: pass builder instead of cell ? 
-  
-  send_message_with_stateinit(0, position_addr, position_state_init, body, mode::carry_remaining_gas);
+  ;; if (payload_s.slice_bits() > 320) { ;; 1023 - (270 * 2 + 32 * 3 + 64)
+  ;;   body = store_ref(body, begin_cell().store_slice(payload_s).end_cell());
+  ;; } else {
+  ;;   body = store_slice(body, payload_s);
+  ;; }
+
+  send_message_with_stateinit(0, position_addr, position_state_init, body.end_cell(), mode::carry_remaining_gas);
 }
 
 () request_position_and_price_with_amount(slice position_redirect_addr, int inner_op, int query_id, int amount, slice payload_s, slice position_addr, cell position_state_init) impure inline {
@@ -47,12 +51,14 @@
     .store_slice(my_address()) ;; oracle redirect -> vamm address
     .store_uint(inner_op, 32)
     .store_uint(query_id, 64)
-    .store_coins(amount)
+    .store_coins(amount);
   ;; .store_slice(payload_s) TODO: send payload ref more in a more elegant way then below:
-    .store_ref(begin_cell().store_slice(payload_s).end_cell())
-    .end_cell(); ;; TODO: pass builder instead of cell ? 
+  if (payload_s.slice_bits()) {
+    body = store_ref(body, begin_cell().store_slice(payload_s).end_cell());
+  }
+  ;; TODO: pass builder instead of cell ? 
   
-  send_message_with_stateinit(0, position_addr, position_state_init, body, mode::carry_remaining_gas);
+  send_message_with_stateinit(0, position_addr, position_state_init, body.end_cell(), mode::carry_remaining_gas);
 }
 
 () request_position(int inner_op, int query_id, slice payload_s, slice position_addr, cell position_state_init) impure inline {

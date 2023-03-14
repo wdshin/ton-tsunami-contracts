@@ -202,30 +202,16 @@ export class Vamm implements Contract {
       .storeAddress(opts.oracleRedirectAddress)
       .storeUint(VammOpcodes.closePosition, 32)
       .storeUint(opts.queryID ?? 0, 64)
-      .storeRef(
-        beginCell()
-          .storeInt(BigMath.abs(opts.size ?? opts.oldPosition.size), 128)
-          .storeCoins(opts.minQuoteAssetAmount ?? 0)
-          .storeBit(opts.addToMargin ?? false)
-          .endCell()
-      )
+      .storeUint(BigMath.abs(opts.size ?? opts.oldPosition.size), 128)
+      .storeCoins(opts.minQuoteAssetAmount ?? 0)
+      .storeBit(opts.addToMargin ?? false)
       .storeRef(packPositionData(opts.oldPosition))
       .storeRef(packOraclePrice(opts.priceData))
       .endCell();
-    // return beginCell()
-    //   .storeUint(VammOpcodes.closePosition, 32)
-    //   .storeUint(opts.queryID ?? 0, 64)
-    //   .storeRef(packPositionData(opts.oldPosition))
-    //   .endCell();
   }
 
-  static addMargin(opts: { queryID?: number; oldPosition: PositionData; amount: bigint }) {
-    return beginCell()
-      .storeUint(VammOpcodes.addMargin, 32)
-      .storeUint(opts.queryID ?? 0, 64)
-      .storeCoins(opts.amount)
-      .storeRef(packPositionData(opts.oldPosition))
-      .endCell();
+  static addMargin() {
+    return beginCell().storeUint(VammOpcodes.addMargin, 32).endCell();
   }
 
   static addMarginRaw(opts: {
@@ -246,12 +232,11 @@ export class Vamm implements Contract {
       .endCell();
   }
 
-  static removeMargin(opts: { queryID?: number; oldPosition: PositionData; amount: bigint }) {
+  static removeMargin(opts: { queryID?: number; amount: bigint }) {
     return beginCell()
       .storeUint(VammOpcodes.removeMargin, 32)
       .storeUint(opts.queryID ?? 0, 64)
       .storeCoins(opts.amount)
-      .storeRef(packPositionData(opts.oldPosition))
       .endCell();
   }
 
@@ -486,6 +471,22 @@ export class Vamm implements Contract {
   }
 
   async sendRemoveMargin(
+    provider: ContractProvider,
+    via: Sender,
+    opts: {
+      value: bigint;
+      queryID?: number;
+      amount: bigint;
+    }
+  ) {
+    await provider.internal(via, {
+      value: opts.value,
+      sendMode: SendMode.PAY_GAS_SEPARATELY,
+      body: Vamm.removeMargin(opts),
+    });
+  }
+
+  async sendRemoveMarginRaw(
     provider: ContractProvider,
     via: Sender,
     opts: {

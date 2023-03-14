@@ -7,18 +7,16 @@ export async function run(provider: NetworkProvider) {
   const vammAddress = Address.parse('EQBPyN6qQvB2LpmKIk4sCzz162pItiHLnS91E_cuRFxkRomm');
   const openedVamm = provider.open(Vamm.createFromAddress(vammAddress));
 
-  const tpwAddress = await openedVamm.getTraderPositionAddress(provider.sender().address!);
-  const tpw = PositionWallet.createFromAddress(tpwAddress);
-  const openedTPW = provider.open(tpw);
+  const pwAddress = await openedVamm.getTraderPositionAddress(provider.sender().address!);
+  const pw = PositionWallet.createFromAddress(pwAddress);
+  const openedPW = provider.open(pw);
 
-  const data = await openedTPW.getPositionData();
+  const data = await openedPW.getPositionData();
 
   console.log('positionData', data);
 
-  await openedVamm.sendClosePosition(provider.sender(), {
+  await openedVamm.sendRemoveMargin(provider.sender(), {
     value: toNano('0.3'),
-    size: data.positionData.size,
-    minQuoteAssetAmount: 0n,
-    addToMargin: false,
+    amount: data.positionData.margin / 10n,
   });
 }

@@ -4,7 +4,7 @@ import { SandboxContract, TreasuryContract } from '@ton-community/sandbox';
 import { extractEvents } from '@ton-community/sandbox/dist/event/Event';
 import { toNano } from 'ton-core';
 
-import { Direction, IncreasePositionBody, Vamm } from '../wrappers/Vamm';
+import { Direction, IncreasePositionBody, Vamm, VammOpcodes } from '../wrappers/Vamm';
 import { initVammData } from '../wrappers/Vamm/Vamm.data';
 import { PositionData } from '../wrappers/PositionWallet';
 import { OraclePrice } from '../wrappers/Oracle';
@@ -161,7 +161,7 @@ describe('vAMM should work with positive funding', () => {
   });
 
   it('Can remove margin', async () => {
-    const removeMarginResult = await vamm.sendRemoveMargin(oracle.getSender(), {
+    const removeMarginResult = await vamm.sendRemoveMarginRaw(oracle.getSender(), {
       value: toNano('0.2'),
       oldPosition: lastLongerPosition,
       amount: toStablecoin(2),
@@ -183,7 +183,7 @@ describe('vAMM should work with positive funding', () => {
   });
 
   it('Can not remove too much margin', async () => {
-    const removeMarginResult = await vamm.sendRemoveMargin(oracle.getSender(), {
+    const removeMarginResult = await vamm.sendRemoveMarginRaw(oracle.getSender(), {
       value: toNano('0.2'),
       oldPosition: lastLongerPosition,
       amount: toStablecoin(110),
@@ -191,14 +191,11 @@ describe('vAMM should work with positive funding', () => {
       oracleRedirectAddress: longerPosition.address,
     });
 
-    const events = extractEvents(removeMarginResult.transactions.at(-1)!);
-    const updatePositionSended = events.some((event) => {
-      if (event.type === 'message_sent') {
-        return event.from === vamm.address && event.to === longerPosition.address;
-      }
-      return false;
+    expect(removeMarginResult.transactions).not.toHaveTransaction({
+      from: vamm.address,
+      to: longerPosition.address,
+      body: (x) => x.beginParse().loadUint(32) === VammOpcodes.updatePosition,
     });
-    expect(updatePositionSended).toBe(false);
   });
 
   it('Can open short position', async () => {

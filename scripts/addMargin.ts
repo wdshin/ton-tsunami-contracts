@@ -2,7 +2,7 @@ import { Address, toNano } from 'ton-core';
 import { NetworkProvider } from '@ton-community/blueprint';
 import { toStablecoin } from '../utils';
 import { JettonWallet } from '../wrappers/JettonWallet';
-import { Direction, Vamm } from '../wrappers/Vamm';
+import { Vamm } from '../wrappers/Vamm';
 
 const usdcAddr = Address.parse('kQBaYzBs3DaCEFtaE8fwQat_74IPBaLRQOTgZgPTPOVUDsFb');
 
@@ -21,11 +21,7 @@ export async function run(provider: NetworkProvider) {
   );
   const openedJW = provider.open(usdcJW);
 
-  const forwardPayload = Vamm.increasePosition({
-    direction: Direction.short,
-    leverage: toStablecoin(3),
-    minBaseAssetAmount: toStablecoin(0.15),
-  });
+  const forwardPayload = Vamm.addMargin();
 
   await openedJW.sendTransfer(provider.sender(), toNano('0.3'), {
     amount: toStablecoin(1000),

@@ -15,3 +15,5 @@ const fundingPeriodDecimal = 60000000;
 
 const FM::FUNDING_ASYMMETRIC = 1;
 const FM::FUNDING_SYMMETRIC = 2;
+
+const withdraw_ton_value = 110000000; ;; 0.12
