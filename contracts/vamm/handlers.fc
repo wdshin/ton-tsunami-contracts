@@ -6,8 +6,9 @@
 #include "./utils.fc";
 #include "./requests.fc";
 
-() handle::transfer_notification(slice in_msg_body, slice sender_addr, int query_id) impure inline {
+() handle::transfer_notification(slice in_msg_body, slice sender_addr, int query_id, int msg_value) impure inline {
   var (int jetton_amount, slice from_addr, cell payload_ref) = (in_msg_body~load_coins(), in_msg_body~load_msg_addr(), in_msg_body.preload_ref());
+  throw_unless(error::invalid_jetton_amount, jetton_amount > 0);
 
   var (slice oracle_addr, slice jetton_wallet_addr, cell position_wallet_code) = select_transfer_data();
 
@@ -17,7 +18,7 @@
   int payload_op = payload_s~load_uint(32);
         
   if ((payload_op == op::increase_position) | (payload_op == op::add_margin)) {
-    throw_unless(error::invalid_jetton_amount, jetton_amount > 0);
+    throw_if(error::min_gas, msg_value < min_gas_ton_amount); ;; TODO: calculate gas from config
 
     var (cell position_state_init, slice trader_position_addr) = get_position_state_init_and_address(position_wallet_code, my_address(), from_addr);
 

@@ -16,4 +16,5 @@ const fundingPeriodDecimal = 60000000;
 const FM::FUNDING_ASYMMETRIC = 1;
 const FM::FUNDING_SYMMETRIC = 2;
 
+const min_gas_ton_amount = 250000000; ;; 0.25 TODO: calculate gas from config
 const withdraw_ton_value = 110000000; ;; 0.12

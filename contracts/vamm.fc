@@ -35,7 +35,7 @@
     int query_id = in_msg_body~load_uint(64);
 
     if (op == op::transfer_notification) {
-        handle::transfer_notification(in_msg_body, sender_addr, query_id);
+        handle::transfer_notification(in_msg_body, sender_addr, query_id, msg_value);
         return ();
     }
 
