@@ -26,7 +26,7 @@ const int WORKCHAIN = 0;
   cell state_init = begin_cell()
         .store_uint(0, 2)
         .store_dict(trader_position_wallet_code)
-        .store_dict(pack_init_position_data(vamm_addr, trader_addr, my_address()))
+        .store_dict(pack_init_position_data(vamm_addr, trader_addr))
         .store_uint(0, 1)
         .end_cell();
     

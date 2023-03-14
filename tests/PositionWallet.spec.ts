@@ -1,100 +1,143 @@
 import '@ton-community/test-utils';
-import { Blockchain } from '@ton-community/sandbox';
+import { Blockchain, SandboxContract, TreasuryContract } from '@ton-community/sandbox';
 import { compile } from '@ton-community/blueprint';
-import { Cell, toNano } from 'ton-core';
+import { toNano } from 'ton-core';
 
-import { TraderPositionWallet } from '../wrappers/TraderPositionWallet';
+import {
+  PositionWallet,
+  PositionWalletErrors,
+  unpackPositionData,
+} from '../wrappers/PositionWallet';
+import { getCurrentTimestamp } from '../utils';
 
-describe('TraderPositionWallet', () => {
-  let code: Cell;
+describe('PositionWallet', () => {
+  let positionWallet: SandboxContract<PositionWallet>;
+  let vamm: SandboxContract<TreasuryContract>;
+  let trader: SandboxContract<TreasuryContract>;
 
   beforeAll(async () => {
-    code = await compile('PositionWallet');
-  });
-
-  it('should deploy', async () => {
     const blockchain = await Blockchain.create();
+    vamm = await blockchain.treasury('vamm');
+    trader = await blockchain.treasury('trader');
 
-    const traderPositionWallet = blockchain.openContract(
-      TraderPositionWallet.createFromConfig(
-        {
-          id: 0,
-          counter: 0,
-        },
-        code
-      )
+    positionWallet = blockchain.openContract(
+      PositionWallet.createEmpty(vamm.address, trader.address, await compile('PositionWallet'))
     );
 
     const deployer = await blockchain.treasury('deployer');
-
-    const deployResult = await traderPositionWallet.sendDeploy(
-      deployer.getSender(),
-      toNano('0.05')
-    );
-
-    expect(deployResult.transactions).toHaveTransaction({
-      from: deployer.address,
-      to: traderPositionWallet.address,
-      deploy: true,
-    });
+    await positionWallet.sendDeploy(deployer.getSender(), toNano('0.05'));
   });
 
-  it('should increase counter', async () => {
-    const blockchain = await Blockchain.create();
-
-    const traderPositionWallet = blockchain.openContract(
-      TraderPositionWallet.createFromConfig(
-        {
-          id: 0,
-          counter: 0,
-        },
-        code
-      )
-    );
-
-    const deployer = await blockchain.treasury('deployer');
-
-    const deployResult = await traderPositionWallet.sendDeploy(
-      deployer.getSender(),
-      toNano('0.05')
-    );
-
-    expect(deployResult.transactions).toHaveTransaction({
-      from: deployer.address,
-      to: traderPositionWallet.address,
-      deploy: true,
+  it('should provide position data price with trader address', async () => {
+    const result = await positionWallet.sendProvidePosition(vamm.getSender(), {
+      value: toNano('0.05'),
+      redirectAddress: vamm.address,
     });
 
-    const increaseTimes = 3;
-    for (let i = 0; i < increaseTimes; i++) {
-      console.log(`increase ${i + 1}/${increaseTimes}`);
+    expect(result.transactions).toHaveTransaction({
+      from: positionWallet.address,
+      to: vamm.address,
+    });
+    const responseMessage = result.events.at(-1);
+    expect(responseMessage?.type).toEqual('message_sent');
+    if (responseMessage?.type !== 'message_sent') throw new Error('Response was not sent');
+    const cs = responseMessage.body.beginParse();
 
-      const increaser = await blockchain.treasury('increaser' + i);
+    const outData = unpackPositionData(cs.preloadRef());
 
-      const counterBefore = await traderPositionWallet.getCounter();
+    expect(outData.size).toEqual(0n);
+    expect(outData.lastUpdatedTimestamp).toEqual(0n);
+    expect(outData.traderAddress.equals(trader.address)).toEqual(true);
+  });
 
-      console.log('counter before increasing', counterBefore);
+  it('should reject next provide request without unlock', async () => {
+    const result = await positionWallet.sendProvidePosition(vamm.getSender(), {
+      value: toNano('0.05'),
+      redirectAddress: vamm.address,
+    });
 
-      const increaseBy = Math.floor(Math.random() * 100);
+    expect(result.transactions).toHaveTransaction({
+      from: vamm.address,
+      to: positionWallet.address,
+      exitCode: PositionWalletErrors.busy,
+    });
+    const data = await positionWallet.getPositionData();
+    expect(data.isBusy).toEqual(true);
+  });
 
-      console.log('increasing by', increaseBy);
+  it('should unlock position', async () => {
+    const result = await positionWallet.sendUnlockPosition(vamm.getSender(), {
+      value: toNano('0.05'),
+    });
 
-      const increaseResult = await traderPositionWallet.sendIncrease(increaser.getSender(), {
-        increaseBy,
-        value: toNano('0.05'),
-      });
+    expect(result.transactions).toHaveTransaction({
+      from: vamm.address,
+      to: positionWallet.address,
+      success: true,
+    });
 
-      expect(increaseResult.transactions).toHaveTransaction({
-        from: increaser.address,
-        to: traderPositionWallet.address,
-        success: true,
-      });
+    const data = await positionWallet.getPositionData();
+    expect(data.isBusy).toEqual(false);
+  });
 
-      const counterAfter = await traderPositionWallet.getCounter();
+  it('should provide then update position', async () => {
+    await positionWallet.sendProvidePosition(vamm.getSender(), {
+      value: toNano('0.05'),
+      redirectAddress: vamm.address,
+    });
 
-      console.log('counter after increasing', counterAfter);
+    const newPositionData = {
+      size: 100n,
+      traderAddress: trader.address,
+      lastUpdatedTimestamp: BigInt(getCurrentTimestamp()),
+      openNotional: 100n,
+      lastUpdatedCumulativePremium: 200n,
+      fee: 12n,
+      margin: 10000n,
+    };
+    const result = await positionWallet.sendUpdatePosition(vamm.getSender(), {
+      value: toNano('0.05'),
+      positionData: newPositionData,
+    });
 
-      expect(counterAfter).toBe(counterBefore + increaseBy);
-    }
+    const data = await positionWallet.getPositionData();
+    expect(data.isBusy).toEqual(false);
+    expect(data.positionData.traderAddress.equals(trader.address)).toEqual(true);
+    const rawData = {
+      ...data.positionData,
+      traderAddress: data.positionData.traderAddress.toString(),
+    };
+    const targetRawData = {
+      ...newPositionData,
+      traderAddress: newPositionData.traderAddress.toString(),
+    };
+    expect(rawData).toEqual(targetRawData);
+  });
+
+  it('should be unlocked only by vamm', async () => {
+    await positionWallet.sendProvidePosition(vamm.getSender(), {
+      value: toNano('0.05'),
+      redirectAddress: vamm.address,
+    });
+
+    const tryUnlockRes = await positionWallet.sendUnlockPosition(trader.getSender(), {
+      value: toNano('0.05'),
+    });
+
+    expect(tryUnlockRes.transactions).toHaveTransaction({
+      from: trader.address,
+      to: positionWallet.address,
+      exitCode: PositionWalletErrors.notAnAmm,
+    });
+
+    const data1 = await positionWallet.getPositionData();
+    expect(data1.isBusy).toEqual(true);
+
+    await positionWallet.sendUnlockPosition(vamm.getSender(), {
+      value: toNano('0.05'),
+    });
+
+    const data2 = await positionWallet.getPositionData();
+    expect(data2.isBusy).toEqual(false);
   });
 });

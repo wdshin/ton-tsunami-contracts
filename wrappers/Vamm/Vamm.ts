@@ -10,7 +10,7 @@ import {
 } from 'ton';
 import { addressToCell, BigMath, toStablecoin, toStablecoinFloat } from '../../utils';
 import { OraclePrice, packOraclePrice } from '../Oracle';
-import { packPositionData, PositionData } from '../TraderPositionWallet';
+import { packPositionData, PositionData } from '../PositionWallet';
 
 import {
   AmmState,

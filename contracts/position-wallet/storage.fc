@@ -1,5 +1,4 @@
 global slice ctx::vamm_addr;                                         ;; VAMM address
-global slice ctx::router_addr;                                       ;; Router address
 global int ctx::is_busy;                                             ;; Flag indicating whether position is processing by amm or not
 global cell ctx::position_ref;                                        ;; Trader position content
 
@@ -15,7 +14,6 @@ global cell ctx::position_ref;                                        ;; Trader 
   slice ds = get_data().begin_parse();
 
   ctx::vamm_addr = ds~load_msg_addr();
-  ctx::router_addr = ds~load_msg_addr();
   ctx::is_busy = ds~load_uint(1);
   ctx::position_ref = ds.preload_ref();
 }
@@ -24,7 +22,6 @@ _ load_raw_data() impure inline {
   slice ds = get_data().begin_parse();
 
   return (
-    ds~load_msg_addr(),
     ds~load_msg_addr(),
     ds~load_uint(1),
     ds.preload_ref()
@@ -35,7 +32,6 @@ _ load_raw_data() impure inline {
   set_data(
     begin_cell()
       .store_slice(ctx::vamm_addr)
-      .store_slice(ctx::router_addr)
       .store_uint(ctx::is_busy, 1)
       .store_ref(ctx::position_ref)
       .end_cell()

@@ -3,8 +3,9 @@
 #include "shared/stdlib.fc";
 #include "shared/messages.fc";
 
-#include "position-wallet/storage.fc";
 #include "position-wallet/op-codes.fc";
+#include "position-wallet/errors.fc";
+#include "position-wallet/storage.fc";
 
 ;; should unlock position state on provide_position bounce
 () on_bounce(slice in_msg_body) impure inline { 
@@ -38,8 +39,8 @@
 
     if (op == op::provide_position) {
         load_data();
-        throw_if(400, ctx::is_busy);
-        throw_unless(401, equal_slices(sender_addr, ctx::router_addr));
+        throw_if(error::busy, ctx::is_busy);
+        throw_unless(error::not_an_amm, equal_slices(sender_addr, ctx::vamm_addr));
 
         ctx::is_busy = 1;
 
@@ -54,8 +55,8 @@
 
     if (op == op::update_position) {
         load_data();
-        throw_unless(400, ctx::is_busy);
-        throw_unless(401, equal_slices(sender_addr, ctx::vamm_addr));
+        throw_unless(error::busy, ctx::is_busy);
+        throw_unless(error::not_an_amm, equal_slices(sender_addr, ctx::vamm_addr));
 
         ctx::is_busy = 0;
         ctx::position_ref = in_msg_body.preload_ref();
@@ -69,7 +70,7 @@
 
     if (op == op::unlock_position) {
         load_data();
-        throw_unless(401, equal_slices(sender_addr, ctx::vamm_addr));
+        throw_unless(error::not_an_amm, equal_slices(sender_addr, ctx::vamm_addr));
 
         ctx::is_busy = 0;
 
@@ -84,6 +85,6 @@
 }
 
 
-(slice, slice, int, cell) get_position_data() method_id {
+(slice, int, cell) get_position_data() method_id {
     return load_raw_data();
 }

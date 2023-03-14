@@ -1,1 +1,2 @@
-const er::wrong_params = 400;
+const error::busy = 400;
+const error::not_an_amm = 401;

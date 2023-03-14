@@ -1,7 +1,7 @@
 import { Address, toNano } from 'ton-core';
 import { NetworkProvider } from '@ton-community/blueprint';
 import { Router } from '../wrappers/Router/Router';
-import { TraderPositionWallet } from '../wrappers/TraderPositionWallet';
+import { TraderPositionWallet } from '../wrappers/PositionWallet';
 import { Vamm } from '../wrappers/Vamm';
 
 export async function run(provider: NetworkProvider) {

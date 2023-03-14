@@ -47,10 +47,9 @@ cell pack_vamm_data(slice router_addr, cell trader_position_wallet_code) inline_
       .end_cell();
 }
 
-cell pack_init_position_data(slice vamm_addr, slice trader_addr, slice router_addr) inline {
+cell pack_init_position_data(slice vamm_addr, slice trader_addr) inline {
   return begin_cell()
     .store_slice(vamm_addr)
-    .store_slice(router_addr)
     .store_uint(0, 1) ;; is_busy
     .store_ref(pack_position_data(trader_addr, 0, 0, 0, 0, 0, 0)) ;; trader_addr size margin open_notional last_updated_cumulative_premium fee last_updated_timestamp
     .end_cell();

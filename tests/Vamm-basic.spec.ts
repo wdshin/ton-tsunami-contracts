@@ -6,7 +6,7 @@ import { toNano } from 'ton-core';
 
 import { Direction, IncreasePositionBody, Vamm } from '../wrappers/Vamm';
 import { initVammData } from '../wrappers/Vamm/Vamm.data';
-import { PositionData } from '../wrappers/TraderPositionWallet';
+import { PositionData } from '../wrappers/PositionWallet';
 import { OraclePrice } from '../wrappers/Oracle';
 import { MyBlockchain } from '../wrappers/MyBlockchain/MyBlockchain';
 

@@ -10,13 +10,19 @@ export type PositionData = {
   lastUpdatedTimestamp: bigint;
 };
 
-export type TraderPositionWalletConfig = {
+export type PositionWalletConfig = {
   vammAddress: Address;
-  routerAddress: Address;
-  isBusy: number;
+  isBusy: boolean;
   positionData: PositionData;
 };
 
-export const TraderPositionWalletOpcodes = {
-  increase: 0x7e8764ef,
+export const PositionWalletOpcodes = {
+  providePosition: 0x13076670,
+  updatePosition: 0x60dfc677,
+  unlockPosition: 0xe7c04e13,
+};
+
+export const PositionWalletErrors = {
+  busy: 400,
+  notAnAmm: 401,
 };

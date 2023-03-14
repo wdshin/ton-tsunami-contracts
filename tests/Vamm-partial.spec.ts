@@ -6,7 +6,7 @@ import { toNano } from 'ton-core';
 
 import { Direction, Vamm } from '../wrappers/Vamm';
 import { initVammData } from '../wrappers/Vamm/Vamm.data';
-import { PositionData } from '../wrappers/TraderPositionWallet';
+import { PositionData } from '../wrappers/PositionWallet';
 import {
   BigMath,
   getAndUnpackPosition,

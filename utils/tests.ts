@@ -1,7 +1,7 @@
 import { EventMessageSent, Event } from '@ton-community/sandbox/dist/event/Event';
 import { Address } from 'ton-core';
 import { OraclePrice } from '../wrappers/Oracle';
-import { PositionData, unpackPositionData } from '../wrappers/TraderPositionWallet';
+import { PositionData, unpackPositionData } from '../wrappers/PositionWallet';
 import { unpackWithdrawMessage } from '../wrappers/Vamm';
 import { toStablecoin } from './common';
 
