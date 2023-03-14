@@ -2,6 +2,7 @@ import { compile } from '@ton-community/blueprint';
 import { Blockchain } from '@ton-community/sandbox';
 import { EventMessageSent, Event } from '@ton-community/sandbox/dist/event/Event';
 import { Address, toNano } from 'ton-core';
+import { MyBlockchain } from '../wrappers/MyBlockchain/MyBlockchain';
 import { OraclePrice } from '../wrappers/Oracle';
 import {
   PositionData,
@@ -52,7 +53,11 @@ export function getOraclePrice(price: number): OraclePrice {
   };
 }
 
-export async function bootstrapTrader(blockchain: Blockchain, vammAddress: Address, role: string) {
+export async function bootstrapTrader(
+  blockchain: Blockchain | MyBlockchain,
+  vammAddress: Address,
+  role: string
+) {
   let trader = await blockchain.treasury(role);
   let traderPosition = blockchain.openContract(
     PositionWallet.createEmpty(vammAddress, trader.address, await compile('PositionWallet'))

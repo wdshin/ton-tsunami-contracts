@@ -8,7 +8,6 @@ import { initVammData } from '../wrappers/Vamm/Vamm.data';
 import { PositionData, PositionWallet } from '../wrappers/PositionWallet';
 import {
   getWithdrawMessage,
-  getInitPosition,
   getOraclePrice,
   toStablecoin,
   toStablecoinFloat,
