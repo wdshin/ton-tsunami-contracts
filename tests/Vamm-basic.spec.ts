@@ -49,7 +49,10 @@ describe('vAMM should work with positive funding', () => {
           liquidity: 100_000,
           price: 55,
           indexId: 123,
-          opts: { oracleAddress: oracle.address },
+          opts: {
+            oracleAddress: oracle.address, // @ts-ignore
+            extraData: { positionWalletCode: await compile('PositionWallet') },
+          },
         }),
         await compile('Vamm')
       )

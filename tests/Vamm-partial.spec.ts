@@ -10,7 +10,6 @@ import {
   BigMath,
   getUpdatePositionMessage,
   getWithdrawMessage,
-  getInitPosition,
   getOraclePrice,
   toStablecoin,
   toStablecoinFloat,
@@ -46,7 +45,10 @@ describe('vAMM should be able to partially close position', () => {
           liquidity: 1_000_000_000,
           price: 55,
           indexId: 1,
-          opts: { oracleAddress: oracle.address },
+          opts: {
+            oracleAddress: oracle.address, // @ts-ignore
+            extraData: { positionWalletCode: await compile('PositionWallet') },
+          },
         }),
         await compile('Vamm')
       )
@@ -627,8 +629,6 @@ describe('vAMM should be able to partially close position', () => {
   });
 
   it('can partially liquidate short position and bring notional down', async function () {
-    // TODO: last short position size=1 (?)
-    lastShorterPosition = getInitPosition(shorterPosition.address);
     const increaseResult = await vamm.sendIncreasePosition(oracle.getSender(), {
       amount: toStablecoin(1000),
       value: toNano('0.2'),
@@ -693,7 +693,6 @@ describe('vAMM should be able to partially close position', () => {
     });
     lastLongerPosition = getUpdatePositionMessage(increaseResult.events);
 
-    // blockchain.setVerbosityForAddress(vamm.address, { vmLogs: 'vm_logs', debugLogs: true });
     const liquidateResult1 = await vamm.sendLiquidateRaw(oracle.getSender(), {
       value: toNano('0.3'),
       oldPosition: lastLongerPosition,

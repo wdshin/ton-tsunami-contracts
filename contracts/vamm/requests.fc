@@ -102,7 +102,8 @@
     .store_uint(op::oracle_price_request, 32)
     .store_slice(my_address()) ;; oracle redirect -> vamm address
     .store_uint(op::pay_funding, 32)
-    .store_uint(query_id, 64);
+    .store_uint(query_id, 64)
+    .store_slice(sender_addr);
   
   send_simple_message(0, db::oracle_addr, body, mode::carry_remaining_gas);
 }

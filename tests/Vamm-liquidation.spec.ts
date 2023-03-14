@@ -47,7 +47,10 @@ describe('vAMM should be able to liquidate underwater long position', () => {
           liquidity: 100_000_000,
           price: 1.23,
           indexId: 100,
-          opts: { oracleAddress: oracle.address },
+          opts: {
+            oracleAddress: oracle.address, // @ts-ignore
+            extraData: { positionWalletCode: await compile('PositionWallet') },
+          },
         }),
         await compile('Vamm')
       )

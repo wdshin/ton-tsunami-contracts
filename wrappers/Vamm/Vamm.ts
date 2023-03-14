@@ -426,6 +426,9 @@ export class Vamm implements Contract {
         .storeAddress(opts.oracleRedirectAddress)
         .storeUint(VammOpcodes.payFunding, 32)
         .storeUint(opts.queryID ?? 0, 64)
+        .storeAddress(
+          via.address ?? Address.parse('EQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAM9c')
+        )
         .storeRef(packOraclePrice(opts.priceData))
         .endCell(),
     });

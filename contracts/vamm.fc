@@ -55,27 +55,17 @@
     }
 
     if (op == op::set_jetton_wallet_address) {
-        ;; TODO: add init check
+        slice ds = get_data().begin_parse();
+        ds~load_coins();
+        ds~load_msg_addr();
+
+        ;; update jetton_wallet_addr only if previous is addr_none
+        int inited? =  ds.preload_uint(2) != 0;
+
+        throw_unless(error::inited, inited?);
         load_data();
+        
         slice db::jetton_wallet_addr = in_msg_body~load_msg_addr();
-        save_data();
-        return ();
-    }
-
-    ;; TODO: remove later
-    if (op == op::temp_set_amm_data) {
-        load_data();
-        var (db::oracle_addr, db::jetton_wallet_addr, db::balance, db::quoteAssetReserve, db::baseAssetReserve) = (in_msg_body~load_msg_addr(), in_msg_body~load_msg_addr(), in_msg_body~load_coins(), in_msg_body~load_coins(), in_msg_body~load_coins());
-        save_data();
-        return ();
-    }
-
-    ;; Just for testing purposes
-    if (op == op::set_oracle_price) {
-        load_data();
-        throw_if(error::not_an_oracle, equal_slices(sender_addr, db::oracle_addr));
-        int new_price = in_msg_body~load_coins();
-        syncTerminalPriceToOracle(new_price);
         save_data();
         return ();
     }

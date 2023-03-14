@@ -44,7 +44,7 @@ global int db::shortFundingRate; ;; 32
 ;; global slice db::vault_addr;
 ;; global slice db::admin_addr;
 ;; global int db::index_id; ;; 2 ** 16
-;; global cell db::trader_position_wallet_code;
+;; global cell db::position_wallet_code;
 global cell db::extra_data_cell;
 
 ;; 35
@@ -129,7 +129,7 @@ _ load_raw_data() impure inline {
   ;; var (
   ;;   db::admin_addr,
   ;;   db::index_id,
-  ;;   db::trader_position_wallet_code
+  ;;   db::position_wallet_code
   ;; ) = unpack_extra_data(ds.preload_ref().begin_parse());
 
   db::extra_data_cell = ds.preload_ref();
@@ -177,7 +177,7 @@ _ load_raw_data() impure inline {
         db::longFundingRate,
         db::shortFundingRate
       ))
-    ;; .store_ref(pack_extra_data(db::admin_addr, db::index_id, db::trader_position_wallet_code))
+    ;; .store_ref(pack_extra_data(db::admin_addr, db::index_id, db::position_wallet_code))
       .store_ref(db::extra_data_cell)
       .end_cell()
   );
