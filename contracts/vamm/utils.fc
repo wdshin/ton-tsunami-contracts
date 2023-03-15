@@ -21,9 +21,9 @@ int get_position_fee(int old_fee) inline {
 }
 
 () require_position_address(slice sender_address, slice trader_addr) impure inline {
-  var (_, slice position_addr) = get_position_state_init_and_address(db::extra_data_cell.begin_parse().preload_ref(), my_address(), trader_addr);
-  (int w1, int h1) = parse_std_addr(sender_address);
-  (int w2, int h2) = parse_std_addr(trader_addr);
+  slice extra_data_s = db::extra_data_cell.begin_parse();
+  cell position_code = extra_data_s.preload_ref();
+  var (_, slice position_addr) = get_position_state_init_and_address(position_code, my_address(), trader_addr);
 
   throw_unless(error::wrong_position_address, equal_slices(sender_address, position_addr));
 }
