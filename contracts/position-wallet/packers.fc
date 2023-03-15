@@ -1,3 +1,5 @@
+#include "../shared/utils.fc";
+
 _ unpack_position_data(slice ds) {
   return (
     ds~load_msg_addr(),       ;; trader_addr
@@ -20,4 +22,24 @@ cell pack_position_data(slice trader_addr, int size, int margin, int open_notion
             .store_uint(fee, 32)
             .store_uint(last_updated_timestamp, 32)
             .end_cell();
+}
+
+cell pack_init_position_data(slice vamm_addr, slice trader_addr) inline {
+  return begin_cell()
+    .store_slice(vamm_addr)
+    .store_uint(0, 1) ;; is_busy
+    .store_ref(pack_position_data(trader_addr, 0, 0, 0, 0, 0, 0)) ;; trader_addr size margin open_notional last_updated_cumulative_premium fee last_updated_timestamp
+    .end_cell();
+}
+
+const int WORKCHAIN = 0;
+(cell, slice) get_position_state_init_and_address(cell trader_position_wallet_code, slice vamm_addr, slice trader_addr) inline {
+  cell state_init = begin_cell()
+        .store_uint(0, 2)
+        .store_dict(trader_position_wallet_code)
+        .store_dict(pack_init_position_data(vamm_addr, trader_addr))
+        .store_uint(0, 1)
+        .end_cell();
+    
+  return (state_init, get_serialized_address(WORKCHAIN, cell_hash(state_init)));
 }

@@ -1,5 +1,0 @@
-const direction::long = 1;
-const direction::short = 2;
-
-const int DECIMAL_UNIT = 1000000;
-const int PNL_OPTION_SPOT = 1;
