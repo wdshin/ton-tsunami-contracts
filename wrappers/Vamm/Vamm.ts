@@ -396,6 +396,7 @@ export class Vamm implements Contract {
     opts: {
       value: bigint;
       queryID?: number;
+      responseAddress?: Address;
     }
   ) {
     await provider.internal(via, {
@@ -416,6 +417,7 @@ export class Vamm implements Contract {
       queryID?: number;
       oracleRedirectAddress: Address;
       priceData: OraclePrice;
+      responseAddress?: Address;
     }
   ) {
     await provider.internal(via, {
@@ -426,8 +428,10 @@ export class Vamm implements Contract {
         .storeAddress(opts.oracleRedirectAddress)
         .storeUint(VammOpcodes.payFunding, 32)
         .storeUint(opts.queryID ?? 0, 64)
-        .storeAddress(
-          via.address ?? Address.parse('EQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAM9c')
+        .storeRef(
+          beginCell()
+            .storeAddress(opts.responseAddress ?? via.address)
+            .endCell()
         )
         .storeRef(packOraclePrice(opts.priceData))
         .endCell(),

@@ -83,6 +83,15 @@ _ load_raw_data() impure inline {
   );
 }
 
+slice select_oracle_address() impure inline {
+  slice ds = get_data().begin_parse();
+  ds~load_coins(); ;; balance
+
+  return (
+    ds~load_msg_addr() ;; oracle_addr
+  );
+}
+
 () load_data() impure inline {
   slice ds = get_data().begin_parse();
 

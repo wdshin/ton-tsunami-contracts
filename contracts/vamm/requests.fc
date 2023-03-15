@@ -96,16 +96,14 @@
 }
 
 () request::pay_funding(slice in_msg_body, slice sender_addr, int query_id) impure inline {
-  load_data();
-
   var body = begin_cell()
     .store_uint(op::oracle_price_request, 32)
     .store_slice(my_address()) ;; oracle redirect -> vamm address
     .store_uint(op::pay_funding, 32)
     .store_uint(query_id, 64)
-    .store_slice(sender_addr);
+    .store_ref(begin_cell().store_slice(sender_addr).end_cell()); ;; TODO: refactor this
   
-  send_simple_message(0, db::oracle_addr, body, mode::carry_remaining_gas);
+  send_simple_message(0, select_oracle_address(), body, mode::carry_remaining_gas);
 }
 
 () request::liquidate(slice in_msg_body, slice liquidator_addr, int query_id) impure inline {

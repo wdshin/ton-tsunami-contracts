@@ -318,7 +318,7 @@
 () handle::pay_funding(slice in_msg_body, slice sender_addr, int query_id) impure inline {
   throw_if(600, now() < db::nextFundingBlockTimestamp);
 
-  cell new_price_ref = in_msg_body.preload_ref();
+  var (cell payload_ref, cell new_price_ref) = (in_msg_body~load_ref(), in_msg_body.preload_ref());
 
   slice oracle_s = new_price_ref.begin_parse();
   int new_price = oracle_s~load_coins();
@@ -344,7 +344,8 @@
     .store_coins(db::latestLongCumulativePremiumFraction)
     .store_coins(db::latestShortCumulativePremiumFraction);
 
-  slice origin_sender_addr = in_msg_body~load_msg_addr();
+  slice payload_s = payload_ref.begin_parse();
+  slice origin_sender_addr = payload_s~load_msg_addr();
   send_simple_message(0, origin_sender_addr, body, mode::carry_remaining_gas + mode::ignore_errors);
 
   save_data();
