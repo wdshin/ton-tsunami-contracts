@@ -2,7 +2,7 @@ const direction::long = 0;
 const direction::short = 1;
 
 const SECONDS = 60;
-const ONE_DAY = 86400000000;
+const ONE_DAY = 86400000000; ;; 24 * 60 * 60 * DECIMAL_UNIT
 
 const DECIMAL_UNIT = 1000000;
 const PNL_OPTION_SPOT = 1;
@@ -18,5 +18,6 @@ const FM::FUNDING_SYMMETRIC = 2;
 
 const min_gas_max_chain = 250000000; ;; 0.25 for max chain of calls. TODO: calculate gas price from config
 const min_gas_oracle_response = 190000000; ;; 0.19 for oracle response. TODO: calculate gas price from config
+const amm_gas_consumption = 39000000; ;; 0.039 TODO: calculate gas price from config
 
 const withdraw_ton_value = 110000000; ;; 0.12

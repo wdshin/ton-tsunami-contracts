@@ -59,6 +59,11 @@
         return ();
     }
 
+    if (op == op::position_request_withdraw) {
+        handle::position_request_withdraw(in_msg_body, sender_addr, query_id);
+        return ();
+    }
+
     if (op == op::set_jetton_wallet_address) {
         slice ds = get_data().begin_parse();
         ds~load_coins();

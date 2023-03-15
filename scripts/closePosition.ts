@@ -4,7 +4,7 @@ import { PositionWallet } from '../wrappers/PositionWallet';
 import { Vamm } from '../wrappers/Vamm';
 
 export async function run(provider: NetworkProvider) {
-  const vammAddress = Address.parse('EQCGa-QN7KkHqYyOky1SMt05yePQXNZ35lSER83L4xfXpPPg');
+  const vammAddress = Address.parse('EQAynwdU0knI3dezH7gDXuQT5jUB-eXKh3sCORt7gpazwere');
   const openedVamm = provider.open(Vamm.createFromAddress(vammAddress));
 
   const tpwAddress = await openedVamm.getTraderPositionAddress(provider.sender().address!);

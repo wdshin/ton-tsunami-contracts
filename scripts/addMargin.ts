@@ -7,7 +7,7 @@ import { Vamm } from '../wrappers/Vamm';
 const usdcAddr = Address.parse('kQBaYzBs3DaCEFtaE8fwQat_74IPBaLRQOTgZgPTPOVUDsFb');
 
 export async function run(provider: NetworkProvider) {
-  const vammAddress = Address.parse('EQCGa-QN7KkHqYyOky1SMt05yePQXNZ35lSER83L4xfXpPPg');
+  const vammAddress = Address.parse('EQDHSgAeOWZJRIHqnE4XvUWhclZnRqBuSFUP6Mu93gjtpJaZ');
 
   const openedVamm = provider.open(Vamm.createFromAddress(vammAddress));
   const positionAddres = await openedVamm.getTraderPositionAddress(provider.sender().address!);

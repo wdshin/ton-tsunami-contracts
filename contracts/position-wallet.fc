@@ -7,6 +7,8 @@
 #include "position-wallet/errors.fc";
 #include "position-wallet/storage.fc";
 
+#include "vamm/op-codes.fc";
+
 ;; should unlock position state on provide_position bounce
 ;; () on_bounce(slice in_msg_body) impure inline { 
 ;;     int op = in_msg_body.preload_uint(32);
@@ -41,8 +43,27 @@
 
     if (op == op::provide_position) {
         load_data();
-        throw_if(error::busy, ctx::is_busy);
         throw_unless(error::not_an_amm, equal_slices(sender_addr, ctx::vamm_addr));
+        if (ctx::is_busy) {
+            throw_if(error::busy, in_msg_body.slice_bits() < 662); ;; 32 * 2 + 267 * 2 + 64
+            in_msg_body~load_msg_addr(); ;; position redirect address
+            in_msg_body~skip_bits(32); ;; oracle op
+            in_msg_body~load_msg_addr(); ;; oracle redirect addr
+            int request_op = in_msg_body~load_uint(32); ;; origin op
+            if ((request_op == op::increase_position) | (request_op == op::add_margin)) { ;; tokens were sent, cant throw, need to sent back
+                var (int query_id, int amount) = (in_msg_body~load_uint(64), in_msg_body~load_coins());
+                slice position_s = ctx::position_ref.begin_parse();
+                slice trader_addr = position_s~load_msg_addr();
+                var body = begin_cell()
+                    .store_uint(op::position_request_withdraw, 32)
+                    .store_uint(query_id, 64)
+                    .store_coins(amount)
+                    .store_slice(trader_addr);
+                send_simple_message(0, ctx::vamm_addr, body, mode::carry_remaining_gas);
+                return ();
+            }
+            throw(error::busy);
+        }
 
         ctx::is_busy = 1;
 
@@ -85,7 +106,6 @@
 
     throw(0xffff); 
 }
-
 
 (slice, int, cell) get_position_data() method_id {
     return load_raw_data();

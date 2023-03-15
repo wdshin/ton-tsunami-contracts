@@ -1,12 +1,11 @@
 import '@ton-community/test-utils';
 import { compile } from '@ton-community/blueprint';
 import { Blockchain, SandboxContract, TreasuryContract } from '@ton-community/sandbox';
-import { Cell, toNano } from 'ton-core';
+import { toNano } from 'ton-core';
 
 import { Oracle, OracleOpcodes, unpackOraclePrice } from '../wrappers/Oracle';
 
 describe('Oracle', () => {
-  let code: Cell;
   let blockchain: Blockchain;
   let oracle: SandboxContract<Oracle>;
   let broadcaster: SandboxContract<TreasuryContract>;
@@ -14,7 +13,7 @@ describe('Oracle', () => {
   let getter: SandboxContract<TreasuryContract>;
 
   beforeAll(async () => {
-    code = await compile('Oracle');
+    let code = await compile('Oracle');
     blockchain = await Blockchain.create();
     broadcaster = await blockchain.treasury('broadcaster');
     attacker = await blockchain.treasury('attacker');

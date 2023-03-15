@@ -10,3 +10,4 @@ const op::provide_position = "op::provide_position"c;
 const op::set_jetton_wallet_address = "op::set_jetton_wallet_address"c;
 const op::update_amm = "op::update_amm"c;
 const op::liquidate = "op::liquidate"c;
+const op::position_request_withdraw = "op::position_request_withdraw"c;

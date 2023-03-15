@@ -54,26 +54,24 @@
   var (int direction, int leverage, int min_base_asset_amount) = (payload_s~load_uint(1), payload_s~load_uint(32), payload_s~load_coins());
 
   if (~ requireMoreMarginRatio(divd(DECIMAL_UNIT, leverage), db::initMarginRatio, true)) {
-    int unlock_ton_amount = msg_value - withdraw_ton_value;
+    int unlock_ton_amount = msg_value - withdraw_ton_value - amm_gas_consumption;
 
     request_withdraw(query_id, raw_amount, position_s~load_msg_addr(), withdraw_ton_value, mode::normal + mode::ignore_errors);
     unlock_position(sender_addr, unlock_ton_amount, mode::normal + mode::ignore_errors);
     return ();
   }
   ;; TODO: fee calculations    
-
   int _amount = raw_amount.divd(muld(db::fee, leverage) + DECIMAL_UNIT);
 
-
   int isNewPosition = old_position_size == 0;
-  int isSameDirection = old_position_size > 0 ? direction == direction::long : direction == direction::short;
-  int expandExisting = (~ isNewPosition) & isSameDirection;
   int isAdd = direction == direction::long;
+  int isSameDirection = old_position_size > 0 ? isAdd : (~ isAdd);
+  int expandExisting = (~ isNewPosition) & isSameDirection;
 
 
-  if (~ (isNewPosition | expandExisting)) {
+  ifnot (isNewPosition | expandExisting) {
     ;; TODO: cant throw, revert amount back and unlock position
-    int unlock_ton_amount = msg_value - withdraw_ton_value;
+    int unlock_ton_amount = msg_value - withdraw_ton_value - amm_gas_consumption;
 
     request_withdraw(query_id, raw_amount, trader_addr, withdraw_ton_value,mode::normal);
     unlock_position(sender_addr, unlock_ton_amount, mode::normal);
@@ -83,38 +81,31 @@
   int openNotional = muld(_amount, leverage);
   var ( 
     int amountBaseAssetBought,
-    int quoteAssetReserveAfter, 
-    int baseAssetReserveAfter
+    db::quoteAssetReserve, 
+    db::baseAssetReserve
   ) = swapInput(isAdd, openNotional);
 
   ;; TODO: check min base amount 
 
   int newPositionSize = old_position_size + amountBaseAssetBought;
-  int totalLongOpenInterestAfter = db::openInterestLong + (newPositionSize > 0 ? openNotional : 0);
-  int totalShortOpenInterestAfter = db::openInterestShort + (newPositionSize < 0 ? openNotional : 0);
+  db::openInterestLong += newPositionSize > 0 ? openNotional : 0;
+  db::openInterestShort += newPositionSize < 0 ? openNotional : 0;
+  db::totalLongPositionSize += newPositionSize > 0 ? abs(amountBaseAssetBought) : 0;
+  db::totalShortPositionSize += newPositionSize < 0 ? abs(amountBaseAssetBought) : 0;
 
-  var (int remainMargin, int x1, int x2, int rolloverFee) = calcRemainMarginWithFundingPaymentAndRolloverFee(
+  var (int newPositionMargin, int x1, int x2, int rolloverFee) = calcRemainMarginWithFundingPaymentAndRolloverFee(
     old_position_size, 
     old_position_margin, 
     old_position_last_updated_cumulative_premium,
     old_position_last_updated_timestamp,
     _amount
   );
-
-  int newPositionMargin = remainMargin;
+  
   int newPositionOpenNotional = old_position_open_notional + openNotional;
         
   int newPositionLatestCPF = latestCumulativePremiumFraction(newPositionSize);
 
-  db::totalLongPositionSize += newPositionSize > 0 ? abs(amountBaseAssetBought) : 0;
-  db::totalShortPositionSize += newPositionSize < 0 ? abs(amountBaseAssetBought) : 0;
-  db::openInterestLong = totalLongOpenInterestAfter;
-  db::openInterestShort = totalShortOpenInterestAfter;
-
-  db::quoteAssetReserve = quoteAssetReserveAfter;
-  db::baseAssetReserve = baseAssetReserveAfter;
   db::balance += _amount;
-
 
   cell new_position_ref = pack_position_data(trader_addr, newPositionSize, newPositionMargin, newPositionOpenNotional, newPositionLatestCPF, get_position_fee(old_position_fee), now());
   ;; TODO: calculate value and mode
@@ -156,12 +147,12 @@
     int positionBadDebt,
     int realizedPnl,
     int marginToTrader,
-    int quoteAssetReserveAfter,
-    int baseAssetReserveAfter,
-    int totalLongAfter,
-    int totalShortAfter,
-    int totalLongOpenInterestAfter,
-    int totalShortOpenInterestAfter,
+    db::quoteAssetReserve,
+    db::baseAssetReserve,
+    db::totalLongPositionSize,
+    db::totalShortPositionSize,
+    db::openInterestLong,
+    db::openInterestShort,
     int realizedFee,
     int exchangedQuoteAssetAmount
   ) = internalClosePosition(
@@ -186,24 +177,14 @@
         
   int withdrawAmount = marginToTrader + realizedFee;
   int ammBalance = db::balance - withdrawAmount;
-      
-  int mint_storage_tons = 50000000; ;; TODO: remov end use config later
-  int value_to_sent = msg_value - mint_storage_tons;
+
+  int value_to_sent = msg_value - amm_gas_consumption;
 
   if (marginToTrader > 0) {
     value_to_sent -= withdraw_ton_value;
     ;; TODO: calculate value and mode
     request_withdraw(query_id, marginToTrader, trader_addr, withdraw_ton_value, mode::normal);
   }
-
-
-
-  db::quoteAssetReserve = quoteAssetReserveAfter;
-  db::baseAssetReserve = baseAssetReserveAfter;
-  db::totalLongPositionSize = totalLongAfter;
-  db::totalShortPositionSize = totalShortAfter;
-  db::openInterestLong = totalLongOpenInterestAfter;
-  db::openInterestShort = totalShortOpenInterestAfter;
 
   db::balance = max(ammBalance, 0);
 
@@ -233,7 +214,7 @@
 
   if (oldPositionSize == 0) {
     ;; TODO: cant throw, revert amount back 
-    int unlock_ton_amount = msg_value - withdraw_ton_value;
+    int unlock_ton_amount = msg_value - withdraw_ton_value - amm_gas_consumption;
     request_withdraw(query_id, _amount, position_s~load_msg_addr(), withdraw_ton_value, mode::normal);
 
     unlock_position(sender_addr, unlock_ton_amount, mode::normal);
@@ -302,7 +283,7 @@
     return ();
   } 
 
-  int update_ton_value = msg_value - withdraw_ton_value;
+  int update_ton_value = msg_value - withdraw_ton_value - amm_gas_consumption;
   request_withdraw(query_id, _amount, trader_addr, withdraw_ton_value, mode::normal);
   cell new_position_ref = pack_position_data(trader_addr, oldPositionSize, remainMargin, oldPositionOpenNotional, latestCumulativePremiumFraction(oldPositionSize), get_position_fee(oldPositionFee), now());
   ;; TODO: calculate value and mode
@@ -453,7 +434,7 @@
   db::openInterestShort = totalShortOpenInterestAfter;
   db::balance = max(ammBalance, 0);
 
-  int update_ton_amount = msg_value - withdraw_ton_value; ;; TODO: calculate gas fee from config
+  int update_ton_amount = msg_value - withdraw_ton_value - amm_gas_consumption; ;; TODO: calculate gas fee from config
 
   request_withdraw(query_id, feeToLiquidator, liquidator_addr, withdraw_ton_value, mode::normal);
 
@@ -501,4 +482,11 @@
   }
 
   throw(error::wrong_op);
+}
+
+() handle::position_request_withdraw(slice in_msg_body, slice sender_addr, int query_id) impure inline {
+  var (int amount, slice trader_addr) = (in_msg_body~load_coins(), in_msg_body~load_msg_addr());
+  require_position_address(sender_addr, trader_addr);
+
+  request_withdraw(query_id, amount, trader_addr, 0, mode::carry_remaining_gas); 
 }
