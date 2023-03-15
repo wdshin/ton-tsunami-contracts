@@ -1,6 +1,6 @@
 import { Address, toNano } from 'ton-core';
-import { Oracle } from '../wrappers/Oracle';
 import { NetworkProvider } from '@ton-community/blueprint';
+import { Oracle } from '../wrappers/Oracle';
 import { sleep, toStablecoin } from '../utils';
 
 export async function run(provider: NetworkProvider) {
@@ -15,7 +15,6 @@ export async function run(provider: NetworkProvider) {
 
   await sleep(12000);
 
-  // run methods on `oracle`
   const oracleDataNext = await oracle.getOracleData();
   console.log({ oracleDataNext });
 }

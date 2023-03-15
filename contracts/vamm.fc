@@ -40,17 +40,22 @@
     }
 
     if (op == op::close_position) {
-        request::close_position(in_msg_body, sender_addr, query_id);
+        request::close_position(in_msg_body, sender_addr, query_id, msg_value);
         return ();
     }
 
     if (op == op::remove_margin) {
-        request::remove_margin(in_msg_body, sender_addr, query_id);
+        request::remove_margin(in_msg_body, sender_addr, query_id, msg_value);
         return ();
     }
 
     if (op == op::pay_funding) {
-        request::pay_funding(in_msg_body, sender_addr, query_id);
+        request::pay_funding(in_msg_body, sender_addr, query_id, msg_value);
+        return ();
+    }
+
+    if (op == op::liquidate) {
+        request::liquidate(in_msg_body, sender_addr, query_id, msg_value);
         return ();
     }
 

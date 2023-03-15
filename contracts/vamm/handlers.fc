@@ -352,8 +352,10 @@
 }
 
 () handle::liquidate(slice in_msg_body, slice sender_addr, int query_id, int msg_value) impure inline {
-  var (slice liquidator_addr, cell position_ref, cell new_price_ref) = (in_msg_body~load_msg_addr(), in_msg_body~load_ref(), in_msg_body.preload_ref());
-
+  var (cell payload_ref, cell position_ref, cell new_price_ref) = (in_msg_body~load_ref(), in_msg_body~load_ref(), in_msg_body.preload_ref());
+  slice payload_s = payload_ref.begin_parse();
+  slice liquidator_addr = payload_s~load_msg_addr();
+  
   slice position_s = position_ref.begin_parse();
   var (slice trader_addr,
     int oldPositionSize,
@@ -368,7 +370,6 @@
   slice oracle_s = new_price_ref.begin_parse();
   int new_price = oracle_s~load_coins();
   syncTerminalPriceToOracle(new_price);
-
 
 
   if (oldPositionSize == 0) {

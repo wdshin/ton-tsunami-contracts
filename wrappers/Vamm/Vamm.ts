@@ -349,7 +349,7 @@ export class Vamm implements Contract {
     opts: {
       value: bigint;
       queryID?: number;
-      liquidator: Address;
+      toLiquidate: Address;
     }
   ) {
     await provider.internal(via, {
@@ -358,7 +358,7 @@ export class Vamm implements Contract {
       body: beginCell()
         .storeUint(VammOpcodes.liquidate, 32)
         .storeUint(opts.queryID ?? 0, 64)
-        .storeAddress(opts.liquidator)
+        .storeAddress(opts.toLiquidate)
         .endCell(),
     });
   }
@@ -371,7 +371,7 @@ export class Vamm implements Contract {
       queryID?: number;
       liquidator: Address;
       oracleRedirectAddress: Address;
-      oldPosition: PositionData;
+      oldPosition: PositionData; // liquidate target position
       priceData: OraclePrice;
     }
   ) {
@@ -383,7 +383,7 @@ export class Vamm implements Contract {
         .storeAddress(opts.oracleRedirectAddress)
         .storeUint(VammOpcodes.liquidate, 32)
         .storeUint(opts.queryID ?? 0, 64)
-        .storeAddress(opts.liquidator)
+        .storeRef(beginCell().storeAddress(opts.liquidator).endCell())
         .storeRef(packPositionData(opts.oldPosition))
         .storeRef(packOraclePrice(opts.priceData))
         .endCell(),

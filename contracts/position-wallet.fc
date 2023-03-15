@@ -8,19 +8,19 @@
 #include "position-wallet/storage.fc";
 
 ;; should unlock position state on provide_position bounce
-() on_bounce(slice in_msg_body) impure inline { 
-    int op = in_msg_body.preload_uint(32);
+;; () on_bounce(slice in_msg_body) impure inline { 
+;;     int op = in_msg_body.preload_uint(32);
 
-    if (op == op::provide_position) {
-        load_data();
-        ctx::is_busy = 0;
-        slice position_s = ctx::position_ref.begin_parse();
-        slice trader_addr = position_s~load_msg_addr();
-        send_empty_message(0, trader_addr, mode::carry_remaining_gas + mode::ignore_errors);
-        save_data();
-        return ();
-    }
-}
+;;     if (op == op::provide_position_response) {
+;;         load_data();
+;;         ctx::is_busy = 0;
+;;         slice position_s = ctx::position_ref.begin_parse();
+;;         slice trader_addr = position_s~load_msg_addr();
+;;         send_empty_message(0, trader_addr, mode::carry_remaining_gas + mode::ignore_errors);
+;;         save_data();
+;;         return ();
+;;     }
+;; }
 
 () recv_internal(int my_balance, int msg_value, cell in_msg_full, slice in_msg_body) impure {
     if (in_msg_body.slice_empty?()) { ;; ignore all empty messages
@@ -30,7 +30,9 @@
     slice cs = in_msg_full.begin_parse();
     int flags = cs~load_uint(4);
     if (flags & 1) {
-        on_bounce(in_msg_body);
+        ;; on_bounce(in_msg_body);
+        ;; Now on_bounce is useless because this msg goes as position->oracle->vamm. This should be rewriten as oracle->position->vamm.
+        ;; Then on_bounce wiil make sense as soon as vamm can unexpectedly fail in compute phase 
         return ();
     }
 
