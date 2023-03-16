@@ -269,7 +269,7 @@ describe('vAMM should be able to partially close position', () => {
       const closeResult = await vamm.sendClosePositionRaw(oracle.getSender(), {
         value: toNano('0.2'),
         oldPosition: lastLongerPosition,
-        size: lastLongerPosition.size / 2n, // Almost 100% close positions
+        size: lastLongerPosition.size / 2n,
         priceData: getOraclePrice(50),
         oracleRedirectAddress: longerPosition.address,
       });
@@ -283,7 +283,6 @@ describe('vAMM should be able to partially close position', () => {
     // expect(toStablecoinFloat(lastLongerPosition.margin)).toBeCloseTo(362.3, 0.1); //  Received: 498.191263
     expect(toStablecoinFloat(lastLongerPosition.size)).toBeCloseTo(27.17, 0.01);
     expect(toStablecoinFloat(lastLongerPosition.openNotional)).toBeCloseTo(1494.61, 0.01);
-    // expect(lastLongerPosition.positionalNotional).toBeCloseTo(1358.74, 0.01);
 
     blockchain.now += 1;
     const closeResult = await vamm.sendClosePositionRaw(oracle.getSender(), {

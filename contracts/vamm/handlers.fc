@@ -60,7 +60,7 @@
     unlock_position(sender_addr, unlock_ton_amount, mode::normal + mode::ignore_errors);
     return ();
   }
-  ;; TODO: fee calculations    
+  ;; TODO: extra fee calculations    
   int _amount = raw_amount.divd(muld(db::fee, leverage) + DECIMAL_UNIT);
 
   int isNewPosition = old_position_size == 0;
@@ -70,7 +70,6 @@
 
 
   ifnot (isNewPosition | expandExisting) {
-    ;; TODO: cant throw, revert amount back and unlock position
     int unlock_ton_amount = msg_value - withdraw_ton_value - amm_gas_consumption;
 
     request_withdraw(query_id, raw_amount, trader_addr, withdraw_ton_value,mode::normal);
@@ -85,13 +84,17 @@
     db::baseAssetReserve
   ) = swapInput(isAdd, openNotional);
 
-  ;; TODO: check min base amount 
+  ;; TODO: later check min base amount here
 
   int newPositionSize = old_position_size + amountBaseAssetBought;
-  db::openInterestLong += newPositionSize > 0 ? openNotional : 0;
-  db::openInterestShort += newPositionSize < 0 ? openNotional : 0;
-  db::totalLongPositionSize += newPositionSize > 0 ? abs(amountBaseAssetBought) : 0;
-  db::totalShortPositionSize += newPositionSize < 0 ? abs(amountBaseAssetBought) : 0;
+  if (newPositionSize > 0) {
+    db::openInterestLong += openNotional;
+    db::totalLongPositionSize += abs(amountBaseAssetBought);
+  } elseif (newPositionSize < 0) {
+    db::openInterestShort += openNotional;
+    db::totalShortPositionSize += abs(amountBaseAssetBought);
+  }
+
 
   var (int newPositionMargin, int x1, int x2, int rolloverFee) = calcRemainMarginWithFundingPaymentAndRolloverFee(
     old_position_size, 
@@ -108,7 +111,6 @@
   db::balance += _amount;
 
   cell new_position_ref = pack_position_data(trader_addr, newPositionSize, newPositionMargin, newPositionOpenNotional, newPositionLatestCPF, get_position_fee(old_position_fee), now());
-  ;; TODO: calculate value and mode
   update_position(new_position_ref, op::increase_position, query_id, sender_addr, 0, mode::carry_remaining_gas + mode::ignore_errors);
 
   ;; TODO: other messages: Vault addLocked, withdrawLocked addFree
@@ -182,7 +184,6 @@
 
   if (marginToTrader > 0) {
     value_to_sent -= withdraw_ton_value;
-    ;; TODO: calculate value and mode
     request_withdraw(query_id, marginToTrader, trader_addr, withdraw_ton_value, mode::normal);
   }
 
@@ -190,7 +191,7 @@
 
   cell new_position_ref = pack_position_data(newPositionSize != 0 ? (trader_addr, newPositionSize, newPositionMargin, newPositionOpenNotional, newPositionLstUpdCPF, get_position_fee(oldPositionFee), now()) : (trader_addr, 0, 0, 0, 0, 0, 0));
   update_position(new_position_ref, op::close_position, query_id, sender_addr, value_to_sent, mode::normal);
-  ;;   TODO: transfer fee here
+  ;;   TODO: transfer fee to stakers here
   ;;   transferFee(feeToStakers)
   save_data();
 }
@@ -212,8 +213,7 @@
   int new_price = oracle_s~load_coins();
   syncTerminalPriceToOracle(new_price);
 
-  if (oldPositionSize == 0) {
-    ;; TODO: cant throw, revert amount back 
+  if (oldPositionSize == 0) { ;; cant throw, revert amount back and unlock position
     int unlock_ton_amount = msg_value - withdraw_ton_value - amm_gas_consumption;
     request_withdraw(query_id, _amount, position_s~load_msg_addr(), withdraw_ton_value, mode::normal);
 
@@ -233,7 +233,6 @@
 
   int newPositionMargin = oldPositionMargin - rolloverFee + _amount;
   cell new_position_ref = pack_position_data(trader_addr, oldPositionSize, newPositionMargin, oldPositionOpenNotional, oldPositionLastUpdatedCPF, get_position_fee(oldPositionFee), now());
-  ;; TODO: calculate value and mode
   update_position(new_position_ref, op::add_margin, query_id, sender_addr, 0, mode::carry_remaining_gas);
 
   ;; TODO: vault/fee actions here doTransferFeeToStakers
@@ -285,8 +284,8 @@
 
   int update_ton_value = msg_value - withdraw_ton_value - amm_gas_consumption;
   request_withdraw(query_id, _amount, trader_addr, withdraw_ton_value, mode::normal);
+
   cell new_position_ref = pack_position_data(trader_addr, oldPositionSize, remainMargin, oldPositionOpenNotional, latestCumulativePremiumFraction(oldPositionSize), get_position_fee(oldPositionFee), now());
-  ;; TODO: calculate value and mode
   update_position(new_position_ref, op::remove_margin, query_id, sender_addr, update_ton_value, mode::normal);
 
   db::balance -= (_amount + rolloverFee);

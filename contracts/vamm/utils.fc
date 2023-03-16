@@ -94,7 +94,7 @@ _ updateReserve(int _isAdd, int _quoteAssetAmount, int _baseAssetAmount) inline_
   if (_isAdd) {
     int newBase = db::baseAssetReserve - _baseAssetAmount;
     if (newBase <= 0) {
-      ;; throw("Tx lead to base asset reserve <= 0, revert");
+      ;; TODO: soft throw when Tx lead to base asset reserve <= 0, revert
       return (0, 0);
     } else {
       return (
@@ -105,7 +105,7 @@ _ updateReserve(int _isAdd, int _quoteAssetAmount, int _baseAssetAmount) inline_
   } else {
     int newQuote = db::quoteAssetReserve - _quoteAssetAmount;
     if (newQuote <= 0) {
-      ;; throw("Tx lead to base quote reserve <= 0, revert")
+      ;; TODO: soft throw when Tx lead to base quote reserve <= 0, revert
       return (0, 0);
     } else {
       return (
@@ -137,36 +137,12 @@ _ swapInput(int _isAdd, int _quoteAssetAmount) inline_ref {
     int baseAssetReserveAfter1
   ) = updateReserve(_isAdd, quoteAssetAmountAdjusted, amountBaseAssetBoughtAbs);
 
+  ;; TODO: soft throw on priceImpact > maxPriceImpactValue
   return (
     amountBaseAssetBought,
     quoteAssetReserveAfter1,
     baseAssetReserveAfter1
   );
-
-  {-
-  int priceBefore = divd(_qtAstR.muld(_qtAstW), _bsAstR.muld(_bsAstW));
-  int marketPrice = divd(_quoteAssetAmount, amountBaseAssetBoughtAbs);
-  int priceDiff = abs(priceBefore - marketPrice);
-  int priceImpact = DECIMAL_UNIT - divd(priceBefore, (priceBefore + priceDiff));
-
-  int maxPriceImpactValue = maxPriceImpact()
-  if (priceImpact > maxPriceImpactValue) then {
-    throw("Price impact " + priceImpact.toString() + " > max price impact " + maxPriceImpactValue.toString() 
-      + " before quote asset: " + _qtAstR.toString()
-      + " before base asset: " + _bsAstR.toString()
-      + " quote asset amount to exchange: " + _quoteAssetAmount.toString()
-      + " price before: " + priceBefore.toString()
-      + " marketPrice: " + marketPrice.toString()
-    )
-  } else {
-    (
-      amountBaseAssetBought,
-      quoteAssetReserveAfter1,
-      baseAssetReserveAfter1,
-      totalPositionSizeAfter1
-    )
-  }
-  -}
 }
 
 ;; Computes position remaining margin with regards fof funding payment, rollover fee
@@ -225,8 +201,7 @@ _ swapOutputWithReserves(
   ;; Price before is computed to check for max price impact during trader
   int priceBefore = divd(_quoteAssetReserve.muld(_quoteAssetWeight), _baseAssetReserve.muld(_baseAssetWeight));
 
-  ;; TODO: handle _baseAssetAmount == 0
-  ;;  throw("Invalid base asset amount") 
+  ;; TODO: later handle _baseAssetAmount == 0
 
   int k = muld(_quoteAssetReserve, _baseAssetReserve);
   int baseAssetPoolAmountAfter = _isAdd ? (_baseAssetReserve + _baseAssetAmount) : (_baseAssetReserve - _baseAssetAmount);
@@ -308,8 +283,7 @@ _ getPositionNotionalAndUnrealizedPnlByValues(
   int _option,
   int oraclePrice
 ) inline_ref {
-  ;; TODO: check _positionSize == 0
-  ;; throw("Invalid position size")
+  ;; TODO: should we check _positionSize == 0 here ?
 
   int isShort = _positionSize < 0;
   int positionNotional = getPositionAdjustedOpenNotional(
@@ -513,33 +487,9 @@ _ internalClosePosition(
     ;; Used in partial liquidations as well.
     int newPositionMargin = _addToMargin ? (newPositionMarginWithSameRatio + marginToTrader) : newPositionMarginWithSameRatio;
     
-    ;; Finally check slippage tolerance settings. It will always be 0 for liquidation.
-  ;;   if (_minQuoteAssetAmount != 0 && exchangedQuoteAssetAmount < _minQuoteAssetAmount) then {
-  ;;     throw("Limit error: " + exchangedQuoteAssetAmount.toString() + " < " + _minQuoteAssetAmount.toString())
-  ;;   } else {
-  ;;     (
-  ;;       newPositionSize,
-  ;;       newPositionMargin,
-  ;;       newPositionOpenNotional,
-  ;;       newPositionLstUpdCPF,
-  ;;       positionBadDebt,
-  ;;       realizedPnl,
-  ;;       if (_addToMargin && isPartialClose) then 0 else marginToTrader,
-  ;;       quoteAssetReserveAfter,
-  ;;       baseAssetReserveAfter,
-  ;;       totalPositionSizeAfter,
-  ;;       openInterestNotional() - openNotionalDelta,
-  ;;       totalLongPositionSize() - if (isLongPosition) then abs(exchangedPositionSize) else 0,
-  ;;       totalShortPositionSize() - if (!isLongPosition) then abs(exchangedPositionSize) else 0,
-  ;;       openInterestLong() - if (isLongPosition) then openNotionalDelta else 0,
-  ;;       openInterestShort() - if (!isLongPosition) then openNotionalDelta else 0,
-  ;;       realizedFee,
-  ;;       exchangedQuoteAssetAmount
-  ;;     )
-  ;;   }
-  ;; } else {
-  ;;   throw("Invalid internalClosePosition params: invalid position size")
-  ;; }
+  ;; Finally check slippage tolerance settings. It will always be 0 for liquidation.
+  ;; TODO: check  if ((_minQuoteAssetAmount != 0) & (exchangedQuoteAssetAmount < _minQuoteAssetAmount)) -> safe throw
+
 
   return (
         newPositionSize,
@@ -614,7 +564,6 @@ int isOverFluctuationLimit(int oraclePrice) inline {
   int spotPrice = getSpotPrice();
   int premium = spotPrice - underlyingPrice;
 
-  ;; | isMarketClosed()
   if ((db::totalShortPositionSize == 0) | (db::totalLongPositionSize == 0)) {
     return (0, 0, 0);
   } 
