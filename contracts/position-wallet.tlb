@@ -1,0 +1,23 @@
+// https://ton.org/docs/#/overviews/TL-B
+// base types defined in https://github.com/ton-blockchain/ton/blob/master/crypto/block/block.tlb
+
+position_data#_ 
+  trader_addr:MsgAddressInt 
+  size:int128
+  margin:Coins
+  open_notional:Coins
+  last_updated_cumulative_premium:Coins
+  last_updated_cumulative_premium:uint32
+  last_updated_timestamp:uint32 = PositionData
+
+// storage
+
+storage#_ vamm_addr:MsgAddressInt is_busy:int1 position_data^PositionData = Storage
+
+// ops
+
+provide_position#13076670 redirect_addr:MsgAddress redirect_data:Cell = InternalMsgBody
+
+update_position#60dfc677 new_position_data:^PositionData = InternalMsgBody
+
+unlock_position#e7c04e13 = InternalMsgBody

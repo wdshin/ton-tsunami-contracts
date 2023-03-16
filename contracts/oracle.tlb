@@ -1,0 +1,16 @@
+// https://ton.org/docs/#/overviews/TL-B
+// base types defined in https://github.com/ton-blockchain/ton/blob/master/crypto/block/block.tlb
+
+// storage
+
+price_data#_ price:Coins last_update_ts:uint32 last_update_block_lt:uint64 = PriceData
+
+storage#_ manager_addr:MsgAddressInt index_id:uint16 price_data:^PriceData = Storage
+
+// ops
+
+set_oracle_price#1cabbe53 new_price:Coins = InternalMsgBody
+
+oracle_price_request#8365d032 redirect_addr:MsgAddress redirect_data:Cell = InternalMsgBody
+
+oracle_price_response#96a426f1 oracle_addr:MsgAddress redirect_data:Cell = InternalMsgBody

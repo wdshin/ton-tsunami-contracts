@@ -1,0 +1,104 @@
+// https://ton.org/docs/#/overviews/TL-B
+// base types defined in https://github.com/ton-blockchain/ton/blob/master/crypto/block/block.tlb
+
+//
+// dependson "oracle.tlb"
+// dependson "position-wallet.tlb"
+//
+
+long$0 = Direction
+short$1 = Direction
+
+transfer_payload#_ payload_op:uint32 rest:Cell = TransferPayload
+
+pay_funding_payload#_ origin_sender_addr:MsgAddress = PayFundingPayload
+
+liquidate_payload#_ liquidator_addr:MsgAddress = LiquidatePayload
+
+increase_payload#_ direction:Direction leverage:uint32 min_base_asset_amount:Coins = IncreasePayload
+
+exchange_settings#_ 
+  fee:uint32
+  rolloverFee:uint32
+  fundingPeriod:uint32
+  initMarginRatio:uint32
+  maintenanceMarginRatio:uint32
+  liquidationFeeRatio:uint32
+  partialLiquidationRatio:uint32
+  spreadLimit:uint32
+  maxPriceImpact:uint32
+  maxPriceSpread:uint32
+  maxOpenNotional:Coins
+  feeToStakersPercent:uint32
+  maxOracleDelay:uint32 = ExchangeSettings
+
+amm_state#_
+  quoteAssetReserve:Coins
+  baseAssetReserve:Coins
+  quoteAssetWeight:uint32
+  totalLongPositionSize:Coins
+  totalShortPositionSize:Coins
+  openInterestLong:Coins
+  openInterestShort:Coins = AmmState
+
+funding_state#_
+  latestLongCumulativePremiumFraction:Coins
+  latestShortCumulativePremiumFraction:Coins
+  nextFundingBlockTimestamp:uint32
+  fundingMode:uint2
+  longFundingRate:uint32
+  shortFundingRate:uint32 = FundingState
+
+extra_data#_
+  vault_addr:MsgAddress
+  admin_addr:MsgAddress
+  paused:uint1
+  closed_only:uint1
+  index_id:uint16
+  position_wallet_code:^Cell = ExtraData
+
+// storage
+
+storage#_ balance:Coins 
+  oracle_addr:MsgAddressInt 
+  jetton_wallet_addr:MsgAddressInt 
+  exchange_settings^ExchangeSettings
+  amm_state:^AmmState
+  funding_state:^FundingState
+  extra_data^:^ExtraData = Storage
+
+// Oraclized actions
+
+increase_position#a55bf923 query_id:uint64 amount:Coins payload:^IncreasePayload position_data:^PositionData price_data:^PriceData  = OraclizedAction
+
+add_margin#b9e810e2 query_id:uint64 amount:Coins position_data:^PositionData price_data:^PriceData = OraclizedAction
+
+close_position#5cc03add query_id:uint64 size:uint128 min_quote_asset_amount:Coins addToMargin:uint1 position_data:^PositionData price_data:^PriceData = OraclizedAction
+
+remove_margin#ecded426 query_id:uint64 amount:Coins position_data:^PositionData price_data:^PriceData = OraclizedAction
+
+pay_funding#b652c441 query_id:uint64 payload^PayFundingPayload price_data:^PriceData = OraclizedAction
+
+liquidate#cc52bae3 query_id:uint64 payload^LiquidatePayload position_data:^PositionData price_data:^PriceData = OraclizedAction
+
+// ops
+
+oracle_response#96a426f1 prev_sender_addr:MsgAddress origin_op:uint32 query_id:uint64 prev_sender_addr:MsgAddress action:OraclizedAction = InternalMsgBody
+
+transfer_notification#7362d09c query_id:uint64 jetton_amount:Coins from_addr:MsgAddress payload:^TransferPayload = InternalMsgBody
+
+close_position#5cc03add query_id:uint64 rest:Cell = InternalMsgBody
+
+remove_margin#ecded426 query_id:uint64 rest:Cell = InternalMsgBody
+
+pay_funding#b652c441 query_id:uint64 = InternalMsgBody
+
+liquidate#b652c441 query_id:uint64 to_liquidate_addr:MsgAddress = InternalMsgBody
+
+position_request_withdraw#c066a426 query_id:uint64 amount:Coins trader_addr:MsgAddress = InternalMsgBody
+
+set_jetton_wallet_address#ee87d2d4 query_id:uint64 jetton_wallet_addr:MsgAddress = InternalMsgBody
+
+update_position#60dfc677 query_id:uint64 op:uint32 quoteAssetReserve:Coins quoteAssetWeight:Coins baseAssetReserve:Coins new_position:^PositionData = InternalMsgBody
+
+unlock_position#e7c04e13 = InternalMsgBody
