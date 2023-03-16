@@ -7,10 +7,10 @@ const usdcAddr = Address.parse('kQBaYzBs3DaCEFtaE8fwQat_74IPBaLRQOTgZgPTPOVUDsFb
 
 export async function run(provider: NetworkProvider) {
   const contractsAdresses = [
-    'EQA8fmNWMCNmil-L0Ga3b_OS2lwUZlAut3cVZ80A_CeGjdg3',
-    'EQAzIi9kHd7DWXrSoOQdkaPJTDTIXG0PEUel8MVOPxIXHrP9',
-    'EQCZM4nIlFlAMWReuyXRId6p_Gq_oGi0rmymarZF5YflsJ6n',
-    'EQBKzIhz7j6GRB8ODhjt77me42GFkib5xOaJqQwXyHpG6VY1',
+    'EQCo6ux4pn8J818iENcocGca7wn0vX3YWJX0gJLcNIGx5lUp',
+    'EQBhGRXeRlA11sI1ZUbo4-3GpXzKoKUjVdAAqwp3WUj2vRyn',
+    'EQD98awwWyzIGSS7zCpBQMCfFjzL2Pqq-pewfz68JNfv9Sj6',
+    'EQC7AShcQ-NPc7-xN4Ht_tBF_1b3q4XQsLKnLRZQWrIBKRZW',
   ];
 
   const usdcJW = await JettonWallet.createFromMaster(

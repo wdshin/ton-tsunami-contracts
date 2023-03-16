@@ -93,7 +93,7 @@ remove_margin#ecded426 query_id:uint64 rest:Cell = InternalMsgBody
 
 pay_funding#b652c441 query_id:uint64 = InternalMsgBody
 
-liquidate#b652c441 query_id:uint64 to_liquidate_addr:MsgAddress = InternalMsgBody
+liquidate#cc52bae3 query_id:uint64 liquidate_target_addr:MsgAddress = InternalMsgBody
 
 position_request_withdraw#c066a426 query_id:uint64 amount:Coins trader_addr:MsgAddress = InternalMsgBody
 
