@@ -4,6 +4,7 @@ const error::invalid_jetton_amount = 402;
 const error::not_an_oracle = 403;
 const error::min_gas = 404;
 const error::wrong_position_address = 405;
+const error::funding_time = 406;
 
 const error::inited = 666;
 

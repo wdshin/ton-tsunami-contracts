@@ -296,7 +296,7 @@
 }
 
 () handle::pay_funding(slice in_msg_body, slice sender_addr, int query_id) impure inline {
-  throw_if(600, now() < db::nextFundingBlockTimestamp);
+  throw_if(error::funding_time, now() < db::nextFundingBlockTimestamp);
 
   var (cell payload_ref, cell new_price_ref) = (in_msg_body~load_ref(), in_msg_body.preload_ref());
 
@@ -310,7 +310,7 @@
     ;; TODO: vault exchangeFreeAndLocked call here
   }
 
-  db::nextFundingBlockTimestamp += fundingPeriodRaw * SECONDS;
+  db::nextFundingBlockTimestamp += db::fundingPeriod;
   db::latestLongCumulativePremiumFraction += longPremiumFraction;
   db::latestShortCumulativePremiumFraction += shortPremiumFraction;
   db::longFundingRate = divd(longPremiumFraction, new_price);
