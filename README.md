@@ -38,6 +38,8 @@ Hackaton protocol smart contracts system consists of three key components:
 
 - `liquidate`: : This function allows the exchange to automatically liquidate a user's open position if it becomes under-collateralized. Can be called by anyone. Takes `to_liquidate_address`, previous `position_ref` and the last oracle `price_ref`.
 
+More concrete schemes can be found in corresponding `contracts/*.tlb` scheme annotations.
+
 Below is an illustration of the call chain of smart contracts called by the `increase_position` method:
 
 ![increase position calls architecture](./pictures/increase-position-calls.png 'Tsunami architecture')
