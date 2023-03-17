@@ -5,6 +5,8 @@ Oracle: https://github.com/Tsunami-Exchange/ton-tsunami-oracle
 
 Indexer: https://github.com/Tsunami-Exchange/ton-tsunami-indexer
 
+Funding: https://github.com/Tsunami-Exchange/ton-tsunami-fund-payer
+
 # Tsunami exchange TON contracts
 
 Install deps and test vAMM:
