@@ -1,4 +1,5 @@
-# The remaining Tsunami exchange project repositories
+## The remaining Tsunami exchange project repositories
+
 UI Telegram app: https://github.com/Tsunami-Exchange/ton-tsunami-ui
 
 Oracle: https://github.com/Tsunami-Exchange/ton-tsunami-oracle
@@ -7,107 +8,74 @@ Indexer: https://github.com/Tsunami-Exchange/ton-tsunami-indexer
 
 # Tsunami exchange TON contracts
 
-Install deps and test vAMM:
+Welcome to the Tsunami Exchange repository! This repository contains the smart contract code for the first perpetual futures decentralized exchange (DEX) protocol on the TON blockchain. The Tsunami Exchange allows users to trade futures contracts with no expiration date, providing a unique trading experience compared to traditional futures exchanges. The platform's aim is to provide a secure, transparent, and efficient trading environment for its users.
 
-```sh
-yarn
-yarn test:vamm
-```
+This repository contains the smart contract code for Tsunami Exchange written in FunС programming language, as well as the tests and scripts written in Typescript.
 
-## Main index ids':
+## Architecture overview
 
-| Index | index_id |
-| ----- | -------- |
-| TON   | 1        |
-| BTC   | 2        |
-| ETH   | 3        |
+Hackaton protocol smart contracts system consists of three key components:
 
----
+- `Oracle`. Sharded smart contract, contains exactly one index price. Can set it's price after `set_oracle_price` call by `manager_addr`. Oracle receives `oracle_price_request` and responds with `oracle_price_response` opcode to the corresponding `redirect_addr` with the corresponding price_data.
+- `Position wallet`. Sharded smart contract. It contains the latest position for a specific trader. It provides its data every time a request is sent to the vAMM contract, which implies a change in trader position data. Afrer every `provide_position` request contract locks it data, waiting for vAMM's response to prevent double spending or data inconsistency caused by asynchronous TON architecture. Contract unlocks it's state after `unlock_position` or `update_position` vAMM's messages.
+- `vAMM`. Handles all the exchange operations with corresponding handler, position data and oracle price
 
-Bootstraped using Blueprint
+### vAMM main handlers:
+
+- `increase_position`: This function allows users to open a new position or increase their opened position in a perpetual futures contract by buying more of the underlying asset. Takes `amount`, `direction`, `leverage`, `min_base_asset_amount`, previous `position_ref` and last oracle `price_ref`.
+
+- `add_margin`: This function allows users to add more collateral to their open position in order to increase their margin and reduce the risk of liquidation. This function allows users to open a new position or increase their opened position in a perpetual futures contract by buying more of the underlying asset. Takes `amount`, previous `position_ref` and last oracle `price_ref`.
+
+- `close_position`: This function allows users to close their open position in a perpetual futures contract by selling the underlying asset. Takes `_size`, `_minQuoteAssetAmount`, flag `_addToMargin`, previous `position_ref` and last oracle `price_ref`.
+
+- `remove_margin`: This function allows users to withdraw excess collateral from their open position. Takes `_amount`, previous `position_ref` and last oracle `price_ref`.
+
+- `remove_margin`: This function allows users to withdraw excess collateral from their open position. Takes `_amount`, previous `position_ref` and last oracle `price_ref`.
+
+- `pay_funding`: This function allows users to pay the funding rate for holding a perpetual futures position. Perpetual futures contracts typically have a funding rate that is paid periodically to ensure that the price of the futures contract stays in line with the underlying asset. Takes last oracle `price_ref`.
+
+- `liquidate`: : This function allows the exchange to automatically liquidate a user's open position if it becomes under-collateralized. Can be called by anyone. Takes `to_liquidate_address`, previous `position_ref` and the last oracle `price_ref`.
+
+Below is an illustration of the call chain of smart contracts called by the `increase_position` method:
+
+![increase position calls architecture](./pictures/increase-position-calls.png 'Tsunami architecture')
+
+### Hackathon limitations
+
+- Oracle is centralized, will need to add ability to decentralization;
+- Order Book is not implemented (but is researched), only Market Orders;
+- Liquidity is stored in vAMM market contracts, no Vault yet. Later, protocol will be updated with a single smart contract entry point, collecting the collateral amount and redirecting all the incoming transactions.
+- Fee sharing between LP and yield token staking is not implemented.
 
 ## Layout
 
+This project was bootstraped using [Blueprint](https://github.com/ton-community/Blueprint) 💙
+
 - `contracts` - contains the source code of all the smart contracts of the project and their dependencies.
 - `wrappers` - contains the wrapper classes (implementing `Contract` from ton-core) for the contracts, including any [de]serialization primitives and compilation functions.
-- `tests` - tests for the contracts. Would typically use the wrappers.
+- `tests` - tests for the contracts.
 - `scripts` - contains scripts used by the project, mainly the deployment scripts.
-
-We ask the community to provide any comments on this layout, the wanted/required changes, or even suggestions for entirely different project structures and/or tool concepts.
-
-PRs are welcome!
-
-## Repo contents / tech stack
-
-1. Compiling FunC - [https://github.com/ton-community/func-js](https://github.com/ton-community/func-js)
-2. Testing TON smart contracts - [https://github.com/ton-community/sandbox/](https://github.com/ton-community/sandbox/)
-3. Deployment of contracts is supported with [TON Connect 2](https://github.com/ton-connect/), [Tonhub wallet](https://tonhub.com/) or via a direct `ton://` deeplink
 
 ## How to use
 
 - Clone this repo
 - Run `yarn install`
 
-### Building a contract
-
-1. Interactively
-   1. Run `yarn blueprint build`
-   2. Choose the contract you'd like to build
-1. Non-interactively
-   1. Run `yarn blueprint build <CONTRACT>`
-   2. example: `yarn blueprint build pingpong`
-
-### Deploying a contract
-
-1. Interactively
-   1. Run `yarn blueprint run`
-   2. Choose the contract you'd like to deploy
-   3. Choose whether you're deploying on mainnet or testnet
-   4. Choose how to deploy:
-      1. With a TON Connect compatible wallet
-      2. A `ton://` deep link / QR code
-      3. Tonhub wallet
-   5. Deploy the contract
-2. Non-interactively
-   1. Run `yarn blueprint run <CONTRACT> --<NETWORK> --<DEPLOY_METHOD>`
-   2. example: `yarn blueprint run pingpong --mainnet --tonconnect`
-
 ### Testing
 
-1. Run `yarn test`
+Run tests:
 
-## Adding your own contract
+```sh
+yarn test
+```
 
-1. Run `yarn blueprint create <CONTRACT>`
-2. example: `yarn blueprint create MyContract`
+Or only vAMM related tests:
 
-- Write code
+```sh
+yarn test:vamm
+```
 
-  - FunC contracts are located in `contracts/*.fc`
-    - Standalone root contracts are located in `contracts/*.fc`
-    - Shared imports (when breaking code to multiple files) are in `contracts/imports/*.fc`
-  - Tests in TypeScript are located in `test/*.spec.ts`
-  - Wrapper classes for interacting with the contract are located in `wrappers/*.ts`
-  - Any scripts (including deployers) are located in `scripts/*.ts`
-
-- Build
-
-  - Builder configs are located in `wrappers/*.compile.ts`
-  - In the root repo dir, run in terminal `yarn blueprint build`
-  - Compilation errors will appear on screen, if applicable
-  - Resulting build artifacts include:
-    - `build/*.compiled.json` - the binary code cell of the compiled contract (for deployment). Saved in a hex format within a json file to support webapp imports
-
-- Test
-
-  - In the root repo dir, run in terminal `yarn test`
-  - Don't forget to build (or rebuild) before running tests
-  - Tests are running inside Node.js by running TVM in web-assembly using [sandbox](https://github.com/ton-community/sandbox)
-
-- Deploy
-  - Run `yarn blueprint run <deployscript>`
-  - Contracts will be rebuilt on each execution
-  - Follow the on-screen instructions of the deploy script
+Tests are writen with [@ton-community/sandbox](https://github.com/ton-community/sandbox).
 
 # License
 
