@@ -13,6 +13,8 @@ export const VammOpcodes = {
   oraclePriceResponse: 0x96a426f1,
   liquidate: 0xcc52bae3,
   setOraclePrice: 0x1cabbe53,
+  unlockPosition: 0xe7c04e13,
+  transfer: 0xf8a7ea5,
 };
 
 export type ExchangeSettings = {

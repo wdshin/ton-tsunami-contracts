@@ -7,12 +7,15 @@ import { Vamm } from '../wrappers/Vamm';
 const usdcAddr = Address.parse('kQBaYzBs3DaCEFtaE8fwQat_74IPBaLRQOTgZgPTPOVUDsFb');
 
 export async function run(provider: NetworkProvider) {
-  const vammAddress = Address.parse('EQBDvMrJpv7nqLfPurq_MFcvdjtNAaJw8-kdTZ4z1c542mmM');
+  const vammAddress = Address.parse('EQCo6ux4pn8J818iENcocGca7wn0vX3YWJX0gJLcNIGx5lUp');
 
   const openedVamm = provider.open(Vamm.createFromAddress(vammAddress));
   const positionAddres = await openedVamm.getTraderPositionAddress(provider.sender().address!);
   console.log('Position address');
   console.log(positionAddres.toString());
+
+  // 24565; 40843267711n 60224642807n
+  console.log(await openedVamm.getAmmData());
 
   const usdcJW = await JettonWallet.createFromMaster(
     provider.api(),

@@ -57,7 +57,7 @@
     int unlock_ton_amount = msg_value - withdraw_ton_value - amm_gas_consumption;
 
     request_withdraw(query_id, raw_amount, position_s~load_msg_addr(), withdraw_ton_value, mode::normal + mode::ignore_errors);
-    unlock_position(sender_addr, unlock_ton_amount, mode::normal + mode::ignore_errors);
+    unlock_position(unlock_ton_amount, sender_addr, mode::normal + mode::ignore_errors);
     return ();
   }
   ;; TODO: extra fee calculations    
@@ -68,12 +68,11 @@
   int isSameDirection = old_position_size > 0 ? isAdd : (~ isAdd);
   int expandExisting = (~ isNewPosition) & isSameDirection;
 
-
   ifnot (isNewPosition | expandExisting) {
     int unlock_ton_amount = msg_value - withdraw_ton_value - amm_gas_consumption;
 
-    request_withdraw(query_id, raw_amount, trader_addr, withdraw_ton_value,mode::normal);
-    unlock_position(sender_addr, unlock_ton_amount, mode::normal);
+    request_withdraw(query_id, raw_amount, trader_addr, withdraw_ton_value, mode::normal);
+    unlock_position(unlock_ton_amount, sender_addr, mode::normal);
     return ();
   }
 
@@ -137,7 +136,7 @@
   
 
   ifnot ((_size <= abs(oldPositionSize)) & (_size > 0)) {
-    unlock_position(sender_addr, 0, mode::carry_remaining_gas);
+    unlock_position(0, sender_addr, mode::carry_remaining_gas);
     return ();
   }
 
@@ -173,7 +172,7 @@
   );
 
   if ((positionBadDebt > 0) | (oldPositionTimestamp >= now())) {
-    unlock_position(sender_addr, 0, mode::carry_remaining_gas);
+    unlock_position(0, sender_addr, mode::carry_remaining_gas);
     return ();
   }
         
@@ -217,7 +216,7 @@
     int unlock_ton_amount = msg_value - withdraw_ton_value - amm_gas_consumption;
     request_withdraw(query_id, _amount, position_s~load_msg_addr(), withdraw_ton_value, mode::normal);
 
-    unlock_position(sender_addr, unlock_ton_amount, mode::normal);
+    unlock_position(unlock_ton_amount, sender_addr, mode::normal);
     return ();
   }
 
@@ -258,7 +257,7 @@
   syncTerminalPriceToOracle(new_price);
 
   if ((_amount <= 0) | (oldPositionSize == 0)) {
-    unlock_position(sender_addr, 0, mode::carry_remaining_gas);
+    unlock_position(0, sender_addr, mode::carry_remaining_gas);
     return ();
   }
 
@@ -272,13 +271,13 @@
   );
 
   if (badDebt != 0)  {
-    unlock_position(sender_addr, 0, mode::carry_remaining_gas);
+    unlock_position(0, sender_addr, mode::carry_remaining_gas);
     return ();
   }
   int marginRatio = calcMarginRatio(remainMargin, badDebt, oldPositionOpenNotional);
 
   if (~ requireMoreMarginRatio(marginRatio, db::initMarginRatio, true))  {
-    unlock_position(sender_addr, 0, mode::carry_remaining_gas);
+    unlock_position(0, sender_addr, mode::carry_remaining_gas);
     return ();
   } 
 
@@ -354,7 +353,7 @@
 
   if (oldPositionSize == 0) {
     ;; "Unable to liquidate"
-    unlock_position(sender_addr, 0, mode::carry_remaining_gas);
+    unlock_position(0, sender_addr, mode::carry_remaining_gas);
     return ();
   }
 
@@ -363,7 +362,7 @@
 
   if (~ requireMoreMarginRatio(liquidationMarginRatio, db::maintenanceMarginRatio, false)) {
     ;; "Unable to liquidate"
-    unlock_position(sender_addr, 0, mode::carry_remaining_gas);
+    unlock_position(0, sender_addr, mode::carry_remaining_gas);
     return ();
   }
 

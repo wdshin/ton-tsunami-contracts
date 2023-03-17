@@ -36,11 +36,11 @@ cell pack_position_init_data(slice trader_addr, slice vamm_addr) {
           .end_cell();
 }
 
-_ unlock_position(slice sender_addr, int value, int mode) impure inline {
+_ unlock_position(int value, slice sender_addr, int mode) impure inline {
   var body = begin_cell()
     .store_uint(op::unlock_position, 32);
 
-  send_simple_message(0, sender_addr, body, mode);
+  send_simple_message(value, sender_addr, body, mode);
 }
 
 _ update_position(cell new_position_ref, int origin_op, int query_id, slice sender_addr, int value, int mode) impure inline_ref {
