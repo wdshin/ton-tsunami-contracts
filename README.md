@@ -32,8 +32,6 @@ Hackaton protocol smart contracts system consists of three key components:
 
 - `remove_margin`: This function allows users to withdraw excess collateral from their open position. Takes `_amount`, previous `position_ref` and last oracle `price_ref`.
 
-- `remove_margin`: This function allows users to withdraw excess collateral from their open position. Takes `_amount`, previous `position_ref` and last oracle `price_ref`.
-
 - `pay_funding`: This function allows users to pay the funding rate for holding a perpetual futures position. Perpetual futures contracts typically have a funding rate that is paid periodically to ensure that the price of the futures contract stays in line with the underlying asset. Takes last oracle `price_ref`.
 
 - `liquidate`: : This function allows the exchange to automatically liquidate a user's open position if it becomes under-collateralized. Can be called by anyone. Takes `to_liquidate_address`, previous `position_ref` and the last oracle `price_ref`.

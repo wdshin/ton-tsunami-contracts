@@ -102,7 +102,6 @@ describe('vAMM should be able to partially close position', () => {
     });
 
     {
-      console.log(`Position size = ${lastLongerPosition.size}`);
       blockchain.now += 1;
       const closeResult = await vamm.sendClosePositionRaw(oracle.getSender(), {
         value: toNano('0.2'),
@@ -276,7 +275,6 @@ describe('vAMM should be able to partially close position', () => {
       lastLongerPosition = getUpdatePositionMessage(closeResult.events);
 
       const withdrawMsg = getWithdrawMessage(closeResult.events);
-      console.log(`1 Got ${toStablecoinFloat(withdrawMsg.amount)}`);
     }
 
     // TODO: fix this
@@ -328,7 +326,6 @@ describe('vAMM should be able to partially close position', () => {
       lastShorterPosition = getUpdatePositionMessage(closeResult.events);
 
       const withdrawMsg = getWithdrawMessage(closeResult.events);
-      console.log(`1 Got ${toStablecoinFloat(withdrawMsg.amount)}`);
     }
 
     blockchain.now += 1;
@@ -404,8 +401,6 @@ describe('vAMM should be able to partially close position', () => {
       lastLongerPosition = getUpdatePositionMessage(closeResult.events);
       const withdrawMsg = getWithdrawMessage(closeResult.events);
       sum += withdrawMsg.amount;
-
-      console.log(`+++ Closed part of position with ${toStablecoinFloat(withdrawMsg.amount)}`);
     }
 
     expect(toStablecoinFloat(ref)).toBeCloseTo(toStablecoinFloat(sum), 0.1);
@@ -475,8 +470,6 @@ describe('vAMM should be able to partially close position', () => {
       lastLongerPosition = getUpdatePositionMessage(closeResult.events);
       const withdrawMsg = getWithdrawMessage(closeResult.events);
       sum += withdrawMsg.amount;
-
-      console.log(`+++ Closed part of position with ${toStablecoinFloat(withdrawMsg.amount)}`);
     }
 
     expect(toStablecoinFloat(ref)).toBeCloseTo(toStablecoinFloat(sum), 0.1);
@@ -545,8 +538,6 @@ describe('vAMM should be able to partially close position', () => {
       lastShorterPosition = getUpdatePositionMessage(closeResult.events);
       const withdrawMsg = getWithdrawMessage(closeResult.events);
       sum += withdrawMsg.amount;
-
-      console.log(`+++ Closed part of position with ${toStablecoinFloat(withdrawMsg.amount)}`);
     }
 
     expect(toStablecoinFloat(ref)).toBeCloseTo(toStablecoinFloat(sum), 0.1);
@@ -616,8 +607,6 @@ describe('vAMM should be able to partially close position', () => {
       lastShorterPosition = getUpdatePositionMessage(closeResult.events);
       const withdrawMsg = getWithdrawMessage(closeResult.events);
       sum += withdrawMsg.amount;
-
-      console.log(`+++ Closed part of position with ${toStablecoinFloat(withdrawMsg.amount)}`);
     }
 
     expect(toStablecoinFloat(ref)).toBeCloseTo(toStablecoinFloat(sum), 0.1);
@@ -792,8 +781,6 @@ describe('vAMM should be able to partially close position', () => {
       } else {
         lastShorterPosition = getUpdatePositionMessage(closeResult.events);
       }
-
-      console.log(`+++ Closed part of position with ${toStablecoinFloat(withdrawMsg.amount)}`);
     }
 
     expect(toStablecoinFloat(ref)).toBeCloseTo(toStablecoinFloat(sum), 0.1);
